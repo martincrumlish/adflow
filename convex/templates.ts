@@ -171,6 +171,83 @@ export const seed = internalMutation({
   },
 });
 
+/**
+ * Idempotent (by name): formats distilled from long-running creatives
+ * found in the Meta Ad Library (AG1, Magic Spoon, True Classic),
+ * July 2026 curation pass.
+ */
+export const seedDiscoveredJul2026 = internalMutation({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx) => {
+    const system = await ctx.db
+      .query("templates")
+      .withIndex("by_user", (q) => q.eq("userId", undefined))
+      .collect();
+    const existingNames = new Set(system.map((t) => t.name));
+    const all = await ctx.db.query("templates").collect();
+    let nextNumber = Math.max(0, ...all.map((t) => t.number)) + 1;
+    let added = 0;
+    for (const template of DISCOVERED_JUL_2026) {
+      if (existingNames.has(template.name)) continue;
+      await ctx.db.insert("templates", { ...template, number: nextNumber++ });
+      added++;
+    }
+    return added;
+  },
+});
+
+const DISCOVERED_JUL_2026: Array<{
+  name: string;
+  body: string;
+  aspectRatio: "1:1" | "4:5" | "9:16";
+  needsProductImages: boolean;
+  category: string;
+}> = [
+  {
+    name: "text-post-confession",
+    aspectRatio: "1:1",
+    needsProductImages: false,
+    category: "ugc",
+    body: `Casual social text-post ad. A long, funny first-person confession set as rounded [TEXT COLOR] text on a vibrant [GRADIENT OR BOLD BACKGROUND], reading: "[CONFESSION COPY - 40-60 words of oversharing enthusiasm about the product, ending casually, e.g. it's on sale now, hopefully we don't sell out]". Looks like a screenshotted social text post: sincere, slightly unhinged, human. No product image. Text rendered once, exactly as written.`,
+  },
+  {
+    name: "spec-strip-banner",
+    aspectRatio: "4:5",
+    needsProductImages: true,
+    category: "product",
+    body: `Product banner ad. A bold title bar across the top reading "[PRODUCT CATEGORY e.g. PROTEIN OATS]" in [ACCENT COLOR], above a horizontal stat strip of three columns: "[STAT 1 e.g. 15g PROTEIN]", "[STAT 2 e.g. 6g FIBER]", "[STAT 3 e.g. 1g SUGAR]". Below, the [PRODUCT] lineup arranged on a [BACKGROUND COLOR] gradient surface with soft studio light. Punchy, information-dense, retail-ready. All numbers and text rendered once, exactly as written.`,
+  },
+  {
+    name: "benefit-checklist",
+    aspectRatio: "4:5",
+    needsProductImages: true,
+    category: "conversion",
+    body: `Checklist ad. Bold headline at top reading "[HEADLINE e.g. STOP THE SEARCH!]" with a short subhead "[SUBHEAD]". Below, three rows each led by a green checkmark: "[BENEFIT 1]", "[BENEFIT 2]", "[BENEFIT 3]". [PRODUCT] shown beneath as a clean flat-lay on a [BACKGROUND COLOR] backdrop. Confident, decision-closing layout. Text exact and legible, rendered once.`,
+  },
+  {
+    name: "variant-grid",
+    aspectRatio: "1:1",
+    needsProductImages: true,
+    category: "product",
+    body: `Product variant grid ad. Headline reading "[HEADLINE e.g. Three flavors. One daily habit.]" above a grid of [NUMBER] tiles, each tile showing a different [PRODUCT] variant on its own [COLOR] color-blocked background with a small label "[VARIANT NAME]". Clean, modern, packaging-forward layout on a [BACKGROUND COLOR] base. Labels legible, rendered once, exactly as written.`,
+  },
+  {
+    name: "sticker-lifestyle",
+    aspectRatio: "9:16",
+    needsProductImages: true,
+    category: "ugc",
+    body: `Casual lifestyle photo ad with a shot-on-phone feel. [PRODUCT] in a real [SETTING e.g. kitchen counter], natural light, imperfect framing. An arched header at the top reading "[HEADER COPY]" in a friendly rounded font, plus 2-3 rounded sticker badges near the product reading "[STICKER 1]", "[STICKER 2]", "[STICKER 3]" in [ACCENT COLOR]. Playful, personal, unpolished-on-purpose. All text rendered once, exactly.`,
+  },
+  {
+    name: "offer-stack",
+    aspectRatio: "1:1",
+    needsProductImages: true,
+    category: "conversion",
+    body: `Bundle offer flat-lay ad. [PRODUCT] centered with its included freebies arranged around it, each labeled via a thin callout line: "[ITEM 1 e.g. FREE Shaker]", "[ITEM 2]", "[ITEM 3]". Headline at top reading "[OFFER HEADLINE e.g. Get Your $79 Welcome Kit FREE]" in [ACCENT COLOR] with a small subhead "[SUBHEAD]". Premium e-commerce offer presentation on a [BACKGROUND COLOR] backdrop. Text appears once, exactly as written.`,
+  },
+];
+
 const SEED_TEMPLATES: Array<{
   number: number;
   name: string;
