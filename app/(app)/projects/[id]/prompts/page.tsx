@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -163,17 +163,25 @@ export default function PromptsPage() {
     null,
   );
 
+  // Local-first selection (state + ref) so rapid toggles don't race
+  // each other or the server round-trip.
+  const [localIds, setLocalIds] = useState<Set<Id<"templates">> | null>(null);
+  const selectedRef = useRef<Set<Id<"templates">> | null>(null);
   const selectedIds = useMemo(
-    () => new Set(project?.selectedTemplateIds ?? []),
-    [project?.selectedTemplateIds],
+    () => localIds ?? new Set(project?.selectedTemplateIds ?? []),
+    [localIds, project?.selectedTemplateIds],
   );
   const prompting = project?.status === "prompting";
   const generating = project?.status === "generating";
 
   function toggleTemplate(templateId: Id<"templates">) {
-    const next = new Set(selectedIds);
+    const base =
+      selectedRef.current ?? new Set(project?.selectedTemplateIds ?? []);
+    const next = new Set(base);
     if (next.has(templateId)) next.delete(templateId);
     else next.add(templateId);
+    selectedRef.current = next;
+    setLocalIds(next);
     setSelected({ projectId, templateIds: [...next] }).catch((error) =>
       toast.error(errorMessage(error)),
     );

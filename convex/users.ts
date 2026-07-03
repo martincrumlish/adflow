@@ -8,7 +8,7 @@ import {
   mutation,
   query,
 } from "./_generated/server";
-import { isAdminUser, requireAdmin } from "./lib/access";
+import { currentAdmin, isAdminUser, requireAdmin } from "./lib/access";
 
 export const viewer = query({
   args: {},
@@ -50,7 +50,7 @@ export const adminList = query({
     }),
   ),
   handler: async (ctx) => {
-    await requireAdmin(ctx);
+    if ((await currentAdmin(ctx)) === null) return [];
     const users = await ctx.db.query("users").collect();
     const plans = await ctx.db.query("plans").collect();
     const planName = new Map(plans.map((p) => [p._id, p.name]));

@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
-import { requireProject, requireUser } from "./lib/access";
+import { ownedProject, requireProject, requireUser } from "./lib/access";
 
 export const MAX_PRODUCT_IMAGES = 3;
 
@@ -50,7 +50,7 @@ export const listForProject = query({
     }),
   ),
   handler: async (ctx, args) => {
-    await requireProject(ctx, args.projectId);
+    if ((await ownedProject(ctx, args.projectId)) === null) return [];
     const images = await ctx.db
       .query("productImages")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))

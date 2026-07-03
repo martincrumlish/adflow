@@ -110,15 +110,27 @@ Return ONLY valid JSON, no markdown or commentary:
 }`;
 }
 
+/** Strips markdown header/bold markers so headers match regardless of style. */
+function stripMarkers(line: string): string {
+  return line
+    .trim()
+    .replace(/^[#>*\s]+/, "")
+    .replace(/[*:\s]+$/, "")
+    .trim();
+}
+
 /**
  * Pulls the IMAGE GENERATION PROMPT MODIFIER paragraph out of a Brand
  * DNA document: everything after that header until the next ALL-CAPS
- * header line (or end of document).
+ * header line (or end of document). Tolerates markdown header markers
+ * (##, **, etc.) since models format the document inconsistently.
  */
 export function extractPromptModifier(document: string): string {
   const lines = document.split("\n");
   const headerIndex = lines.findIndex((line) =>
-    line.trim().toUpperCase().startsWith("IMAGE GENERATION PROMPT MODIFIER"),
+    stripMarkers(line)
+      .toUpperCase()
+      .startsWith("IMAGE GENERATION PROMPT MODIFIER"),
   );
   if (headerIndex === -1) return "";
   const collected: string[] = [];
@@ -126,12 +138,10 @@ export function extractPromptModifier(document: string): string {
     const trimmed = line.trim();
     // Skip underline/divider rows.
     if (/^[=\-_*]{3,}$/.test(trimmed)) continue;
-    // Stop at the next section header (ALL CAPS line).
-    if (
-      trimmed.length > 3 &&
-      /^[A-Z][A-Z /&-]+$/.test(trimmed) &&
-      trimmed === trimmed.toUpperCase()
-    ) {
+    // Stop at the next section header: a line that is already ALL CAPS
+    // once markdown markers are stripped.
+    const stripped = stripMarkers(line);
+    if (stripped.length > 3 && /^[A-Z][A-Z0-9 /&-]+$/.test(stripped)) {
       break;
     }
     collected.push(line);

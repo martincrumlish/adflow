@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
-import { requireProject } from "./lib/access";
+import { ownedProject, requireProject } from "./lib/access";
+import { extractPromptModifier } from "./lib/prompts";
 
 export const get = query({
   args: { projectId: v.id("projects") },
@@ -13,7 +14,7 @@ export const get = query({
     }),
   ),
   handler: async (ctx, args) => {
-    await requireProject(ctx, args.projectId);
+    if ((await ownedProject(ctx, args.projectId)) === null) return null;
     const dna = await ctx.db
       .query("brandDna")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
@@ -24,6 +25,22 @@ export const get = query({
       document: dna.document,
       promptModifier: dna.promptModifier,
     };
+  },
+});
+
+/** Utility: recompute the modifier from the stored document. */
+export const reextractModifier = internalMutation({
+  args: { projectId: v.id("projects") },
+  returns: v.string(),
+  handler: async (ctx, args) => {
+    const dna = await ctx.db
+      .query("brandDna")
+      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
+      .unique();
+    if (!dna) throw new ConvexError("No Brand DNA for this project.");
+    const promptModifier = extractPromptModifier(dna.document);
+    await ctx.db.patch(dna._id, { promptModifier });
+    return promptModifier;
   },
 });
 

@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { requireAdmin } from "./lib/access";
+import { currentAdmin, requireAdmin } from "./lib/access";
 
 function generateToken(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(24));
@@ -21,7 +21,7 @@ export const adminList = query({
     }),
   ),
   handler: async (ctx) => {
-    await requireAdmin(ctx);
+    if ((await currentAdmin(ctx)) === null) return [];
     const links = await ctx.db.query("signupLinks").collect();
     const plans = await ctx.db.query("plans").collect();
     const planName = new Map(plans.map((p) => [p._id, p.name]));

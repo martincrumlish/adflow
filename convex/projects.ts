@@ -5,7 +5,12 @@ import {
   mutation,
   query,
 } from "./_generated/server";
-import { requireProject, requireUser } from "./lib/access";
+import {
+  currentUser,
+  ownedProject,
+  requireProject,
+  requireUser,
+} from "./lib/access";
 import { projectStatus } from "./schema";
 import { deleteProjectContents } from "./users";
 
@@ -27,7 +32,8 @@ export const list = query({
   args: {},
   returns: v.array(projectDoc),
   handler: async (ctx) => {
-    const user = await requireUser(ctx);
+    const user = await currentUser(ctx);
+    if (user === null) return [];
     const projects = await ctx.db
       .query("projects")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
@@ -41,8 +47,8 @@ export const get = query({
   args: { projectId: v.id("projects") },
   returns: v.union(projectDoc, v.null()),
   handler: async (ctx, args) => {
-    const { project } = await requireProject(ctx, args.projectId);
-    return project;
+    const owned = await ownedProject(ctx, args.projectId);
+    return owned?.project ?? null;
   },
 });
 

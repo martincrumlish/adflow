@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
-import { requireProject } from "./lib/access";
+import { ownedProject, requireProject } from "./lib/access";
 import { aspectRatio } from "./schema";
 
 const promptDoc = v.object({
@@ -19,7 +19,7 @@ export const listForProject = query({
   args: { projectId: v.id("projects") },
   returns: v.array(promptDoc),
   handler: async (ctx, args) => {
-    await requireProject(ctx, args.projectId);
+    if ((await ownedProject(ctx, args.projectId)) === null) return [];
     const prompts = await ctx.db
       .query("prompts")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))

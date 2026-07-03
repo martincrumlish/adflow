@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { requireAdmin } from "./lib/access";
+import { currentAdmin, requireAdmin } from "./lib/access";
 
 export const adminList = query({
   args: {},
@@ -16,7 +16,7 @@ export const adminList = query({
     }),
   ),
   handler: async (ctx) => {
-    await requireAdmin(ctx);
+    if ((await currentAdmin(ctx)) === null) return [];
     const plans = await ctx.db.query("plans").collect();
     const users = await ctx.db.query("users").collect();
     const links = await ctx.db.query("signupLinks").collect();

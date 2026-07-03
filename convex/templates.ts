@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
-import { isAdminUser, requireUser } from "./lib/access";
+import { currentUser, isAdminUser, requireUser } from "./lib/access";
 import { aspectRatio } from "./schema";
 
 const templateDoc = v.object({
@@ -21,7 +21,8 @@ export const list = query({
   args: {},
   returns: v.array(templateDoc),
   handler: async (ctx) => {
-    const user = await requireUser(ctx);
+    const user = await currentUser(ctx);
+    if (user === null) return [];
     const system = await ctx.db
       .query("templates")
       .withIndex("by_user", (q) => q.eq("userId", undefined))

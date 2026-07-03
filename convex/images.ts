@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
-import { requireProject } from "./lib/access";
+import { ownedProject } from "./lib/access";
 
 export const gallery = query({
   args: { projectId: v.id("projects") },
@@ -18,7 +18,7 @@ export const gallery = query({
     }),
   ),
   handler: async (ctx, args) => {
-    await requireProject(ctx, args.projectId);
+    if ((await ownedProject(ctx, args.projectId)) === null) return [];
     const images = await ctx.db
       .query("images")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))

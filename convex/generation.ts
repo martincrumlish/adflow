@@ -8,7 +8,7 @@ import {
   query,
   type MutationCtx,
 } from "./_generated/server";
-import { requireProject } from "./lib/access";
+import { ownedProject, requireProject } from "./lib/access";
 import { aspectRatio, jobQuality } from "./schema";
 
 /** A running job older than this is considered dead and gets failed. */
@@ -34,7 +34,7 @@ export const jobsForProject = query({
     }),
   ),
   handler: async (ctx, args) => {
-    await requireProject(ctx, args.projectId);
+    if ((await ownedProject(ctx, args.projectId)) === null) return [];
     const jobs = await ctx.db
       .query("jobs")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))

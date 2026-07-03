@@ -27,6 +27,33 @@ export async function requireUser(ctx: Ctx): Promise<Doc<"users">> {
   return user;
 }
 
+/**
+ * Nullable variants for queries: a signed-out client may still hold
+ * live subscriptions for a moment, so reads degrade to empty results
+ * instead of throwing. Mutations/actions keep the throwing variants.
+ */
+export async function currentUser(ctx: Ctx): Promise<Doc<"users"> | null> {
+  const userId = await getAuthUserId(ctx);
+  if (userId === null) return null;
+  return await ctx.db.get(userId);
+}
+
+export async function currentAdmin(ctx: Ctx): Promise<Doc<"users"> | null> {
+  const user = await currentUser(ctx);
+  return user !== null && isAdminUser(user) ? user : null;
+}
+
+export async function ownedProject(
+  ctx: Ctx,
+  projectId: Id<"projects">,
+): Promise<{ user: Doc<"users">; project: Doc<"projects"> } | null> {
+  const user = await currentUser(ctx);
+  if (user === null) return null;
+  const project = await ctx.db.get(projectId);
+  if (project === null || project.userId !== user._id) return null;
+  return { user, project };
+}
+
 export async function requireAdmin(ctx: Ctx): Promise<Doc<"users">> {
   const user = await requireUser(ctx);
   if (!isAdminUser(user)) throw new ConvexError("Admin access required");
