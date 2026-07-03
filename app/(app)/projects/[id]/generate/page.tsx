@@ -150,8 +150,8 @@ export default function GeneratePage() {
         <CardHeader>
           <CardTitle>Run image generation</CardTitle>
           <CardDescription>
-            Images render one at a time in the background — you can close this
-            tab and come back to a full gallery.
+            Images render a few at a time in the background — you can close
+            this tab and come back to a full gallery.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

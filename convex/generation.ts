@@ -14,6 +14,17 @@ import { aspectRatio, jobQuality } from "./schema";
 /** A running job older than this is considered dead and gets failed. */
 const STALE_JOB_MS = 15 * 60 * 1000;
 
+/**
+ * How many FAL calls may run at once per project. Bounded so a big run
+ * never fans out unbounded; override with the GENERATION_CONCURRENCY
+ * env var (clamped to 1-8).
+ */
+export function concurrencyCap(): number {
+  const parsed = Number(process.env.GENERATION_CONCURRENCY ?? 4);
+  if (!Number.isFinite(parsed)) return 4;
+  return Math.max(1, Math.min(8, Math.floor(parsed)));
+}
+
 export const jobsForProject = query({
   args: { projectId: v.id("projects") },
   returns: v.array(
@@ -99,9 +110,16 @@ export const start = mutation({
     if (project.status !== "generating") {
       await ctx.db.patch(args.projectId, { status: "generating" });
     }
-    await ctx.scheduler.runAfter(0, internal.generationWorker.processQueue, {
-      projectId: args.projectId,
-    });
+    // Spin up a bounded worker pool; each worker claims one job at a
+    // time and reschedules itself until the queue drains.
+    const workers = Math.min(concurrencyCap(), wanted.length);
+    for (let i = 0; i < workers; i++) {
+      await ctx.scheduler.runAfter(
+        i * 250,
+        internal.generationWorker.processQueue,
+        { projectId: args.projectId },
+      );
+    }
     return null;
   },
 });
@@ -194,9 +212,10 @@ const claimedBundle = v.union(
 );
 
 /**
- * Atomically claims the next queued job. Returns null when another job
- * is mid-flight (single-file processing, never parallel FAL calls) or
- * when the queue is drained (which also finalizes the project).
+ * Atomically claims the next queued job. Returns null when the
+ * concurrency cap is already saturated or when the queue is drained
+ * (which also finalizes the project). Claims are transactional, so
+ * concurrent workers always get distinct jobs.
  */
 export const claimNext = internalMutation({
   args: { projectId: v.id("projects") },
@@ -208,6 +227,7 @@ export const claimNext = internalMutation({
         q.eq("projectId", args.projectId).eq("status", "running"),
       )
       .collect();
+    let activeCount = 0;
     for (const job of running) {
       if ((job.startedAt ?? 0) < Date.now() - STALE_JOB_MS) {
         await ctx.db.patch(job._id, {
@@ -216,8 +236,11 @@ export const claimNext = internalMutation({
           finishedAt: Date.now(),
         });
       } else {
-        return null; // Someone is already processing.
+        activeCount++;
       }
+    }
+    if (activeCount >= concurrencyCap()) {
+      return null; // Pool is saturated; this worker retires.
     }
     const next = await ctx.db
       .query("jobs")

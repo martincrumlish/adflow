@@ -28,10 +28,12 @@ images one by one in a background queue — you come back to a finished gallery.
 3. **Prompts** — select templates; a second action fills every template with
    brand-specific copy (JSON-only output) and stores one editable prompt per
    template.
-4. **Generate** — one job per prompt, processed strictly one at a time by a
-   self-rescheduling Convex scheduler worker. Product-reference prompts call
-   the FAL edit endpoint with the uploaded photos; results are stored in
-   Convex file storage. Live progress via Convex reactivity (no polling).
+4. **Generate** — one job per prompt, drained by a bounded pool of
+   self-rescheduling Convex scheduler workers (default 4 concurrent FAL
+   calls; tune with `GENERATION_CONCURRENCY`, clamped 1–8).
+   Product-reference prompts call the FAL edit endpoint with the uploaded
+   photos; results are stored in Convex file storage. Live progress via
+   Convex reactivity (no polling).
 5. **Gallery** — grouped grid, lightbox, download, view prompt,
    regenerate-one.
 

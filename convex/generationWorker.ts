@@ -36,9 +36,10 @@ function falErrorMessage(error: unknown): string {
 
 /**
  * Phase 3 worker: claims one queued job, runs one FAL call, stores the
- * image in Convex storage, then reschedules itself. Jobs are strictly
- * sequential per project — never a long blocking run, never parallel
- * FAL calls.
+ * image in Convex storage, then reschedules itself. A bounded pool of
+ * these workers (see `concurrencyCap` in generation.ts) drains the
+ * queue — never a single long blocking run, never an unbounded fan-out
+ * of FAL calls.
  */
 export const processQueue = internalAction({
   args: { projectId: v.id("projects") },
