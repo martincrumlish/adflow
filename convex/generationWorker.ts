@@ -16,6 +16,17 @@ function mapAspect(aspect: string): { width: number; height: number } {
   }
 }
 
+/**
+ * Appended to prompts that carry product reference images. Without it
+ * the model treats references as loose inspiration and invents its own
+ * version of the product (especially for UI screenshots).
+ */
+const REFERENCE_FIDELITY_SUFFIX =
+  " The attached reference images show the real product. Depict this exact" +
+  " product faithfully — same design, branding, colors, and interface or" +
+  " packaging details as the references. Do not invent a different version" +
+  " of the product.";
+
 function falErrorMessage(error: unknown): string {
   if (error && typeof error === "object") {
     // FAL validation errors carry details in `body.detail`.
@@ -84,7 +95,9 @@ export const processQueue = internalAction({
         : "openai/gpt-image-2";
       const size = mapAspect(prompt.aspectRatio);
       const input: Record<string, unknown> = {
-        prompt: prompt.prompt,
+        prompt: useEdit
+          ? prompt.prompt + REFERENCE_FIDELITY_SUFFIX
+          : prompt.prompt,
         image_size: size,
         quality: job.quality,
         num_images: 1,
