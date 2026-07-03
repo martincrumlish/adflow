@@ -16,7 +16,6 @@ import { errorMessage } from "@/lib/errors";
 
 export default function TemplatesPage() {
   const templates = useQuery(api.templates.list);
-  const viewer = useQuery(api.users.viewer);
   const duplicate = useMutation(api.templates.duplicate);
   const remove = useMutation(api.templates.remove);
 
@@ -57,9 +56,10 @@ export default function TemplatesPage() {
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {templates.map((template) => {
-            const canEdit =
-              !template.isSystem || viewer?.isAdmin === true;
-            const canDelete = canEdit;
+            // System templates are curated in the admin area; here they
+            // are read-only for everyone. Duplicate to customize.
+            const canEdit = !template.isSystem;
+            const canDelete = !template.isSystem;
             return (
               <div
                 key={template._id}

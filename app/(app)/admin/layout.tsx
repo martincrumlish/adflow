@@ -12,6 +12,7 @@ const SECTIONS = [
   { href: "/admin", label: "Users" },
   { href: "/admin/plans", label: "Plans" },
   { href: "/admin/links", label: "Signup links" },
+  { href: "/admin/templates", label: "System templates" },
 ];
 
 export default function AdminLayout({

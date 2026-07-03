@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -38,20 +38,22 @@ export type EditableTemplate = {
 
 /**
  * Create (template === null) or edit (template set) a template.
- * Controlled from outside via open/onOpenChange.
+ * mode "user" manages the caller's private templates; mode "system"
+ * (admin area only) manages the shared library.
  */
 export function TemplateEditorDialog({
   open,
   onOpenChange,
   template,
+  mode = "user",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   template: EditableTemplate | null;
+  mode?: "user" | "system";
 }) {
   const createTemplate = useMutation(api.templates.create);
   const updateTemplate = useMutation(api.templates.update);
-  const viewer = useQuery(api.users.viewer);
   const [pending, setPending] = useState(false);
 
   const [name, setName] = useState("");
@@ -59,7 +61,6 @@ export function TemplateEditorDialog({
   const [aspect, setAspect] = useState<"1:1" | "4:5" | "9:16">("1:1");
   const [needsProduct, setNeedsProduct] = useState(false);
   const [category, setCategory] = useState("");
-  const [system, setSystem] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -68,7 +69,6 @@ export function TemplateEditorDialog({
       setAspect(template?.aspectRatio ?? "1:1");
       setNeedsProduct(template?.needsProductImages ?? false);
       setCategory(template?.category ?? "");
-      setSystem(false);
     }
   }, [open, template]);
 
@@ -93,9 +93,11 @@ export function TemplateEditorDialog({
           aspectRatio: aspect,
           needsProductImages: needsProduct,
           category: category || undefined,
-          system: system || undefined,
+          system: mode === "system" ? true : undefined,
         });
-        toast.success(system ? "System template added." : "Template created.");
+        toast.success(
+          mode === "system" ? "System template added." : "Template created.",
+        );
       }
       onOpenChange(false);
     } catch (error) {
@@ -110,11 +112,17 @@ export function TemplateEditorDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {template ? "Edit template" : "New template"}
+            {template
+              ? "Edit template"
+              : mode === "system"
+                ? "New system template"
+                : "New template"}
           </DialogTitle>
           <DialogDescription>
             Use [BRACKETED PLACEHOLDERS] for details the AI fills per brand,
             and keep literal ad copy inside double quotes.
+            {mode === "system" &&
+              " System templates are visible to every user."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
@@ -178,22 +186,14 @@ export function TemplateEditorDialog({
                 />
               </div>
             </div>
-            {!template && viewer?.isAdmin && (
-              <div className="space-y-2">
-                <Label htmlFor="tpl-system">System (all users)</Label>
-                <div className="pt-1">
-                  <Switch
-                    id="tpl-system"
-                    checked={system}
-                    onCheckedChange={setSystem}
-                  />
-                </div>
-              </div>
-            )}
           </div>
           <Button type="submit" className="w-full" disabled={pending}>
             {pending && <Loader2 className="size-4 animate-spin" />}
-            {template ? "Save template" : "Create template"}
+            {template
+              ? "Save template"
+              : mode === "system"
+                ? "Add to system library"
+                : "Create template"}
           </Button>
         </form>
       </DialogContent>
