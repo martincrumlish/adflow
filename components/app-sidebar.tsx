@@ -15,6 +15,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import { Logo } from "@/components/logo";
 import { NewProjectDialog } from "@/components/new-project-dialog";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -140,15 +141,18 @@ export function AppSidebar() {
               </p>
             )}
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7 shrink-0 text-muted-foreground hover:text-foreground"
-            title="Sign out"
-            onClick={() => void signOut().then(() => router.push("/signin"))}
-          >
-            <LogOut className="size-4" />
-          </Button>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <ThemeToggle />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 shrink-0 text-muted-foreground hover:text-foreground"
+              title="Sign out"
+              onClick={() => void signOut().then(() => router.push("/signin"))}
+            >
+              <LogOut className="size-4" />
+            </Button>
+          </div>
         </div>
       </div>
     </aside>

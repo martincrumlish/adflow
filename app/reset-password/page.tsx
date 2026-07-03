@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
 import { Logo } from "@/components/logo";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -107,7 +108,8 @@ function ResetPasswordForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-8 p-6">
+    <div className="relative flex min-h-screen flex-col items-center justify-center gap-8 p-6">
+      <ThemeToggle className="absolute right-4 top-4" />
       <Logo />
       <Suspense>
         <ResetPasswordForm />

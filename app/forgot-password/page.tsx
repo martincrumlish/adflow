@@ -5,6 +5,7 @@ import { Loader2, MailCheck } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { Logo } from "@/components/logo";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -39,7 +40,8 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-8 p-6">
+    <div className="relative flex min-h-screen flex-col items-center justify-center gap-8 p-6">
+      <ThemeToggle className="absolute right-4 top-4" />
       <Logo />
       <Card className="w-full max-w-sm">
         {sentTo ? (
