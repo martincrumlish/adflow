@@ -30,9 +30,8 @@ export default function AdminTemplatesPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          The shared library every user sees. Add formats you&apos;ve
-          discovered and validated; users can duplicate them into private
-          copies but never edit these directly.
+          Users can duplicate these into private copies but never edit them
+          directly.
         </p>
         <Button
           size="sm"
