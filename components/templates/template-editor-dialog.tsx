@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -51,6 +51,7 @@ export function TemplateEditorDialog({
 }) {
   const createTemplate = useMutation(api.templates.create);
   const updateTemplate = useMutation(api.templates.update);
+  const viewer = useQuery(api.users.viewer);
   const [pending, setPending] = useState(false);
 
   const [name, setName] = useState("");
@@ -58,6 +59,7 @@ export function TemplateEditorDialog({
   const [aspect, setAspect] = useState<"1:1" | "4:5" | "9:16">("1:1");
   const [needsProduct, setNeedsProduct] = useState(false);
   const [category, setCategory] = useState("");
+  const [system, setSystem] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -66,6 +68,7 @@ export function TemplateEditorDialog({
       setAspect(template?.aspectRatio ?? "1:1");
       setNeedsProduct(template?.needsProductImages ?? false);
       setCategory(template?.category ?? "");
+      setSystem(false);
     }
   }, [open, template]);
 
@@ -90,8 +93,9 @@ export function TemplateEditorDialog({
           aspectRatio: aspect,
           needsProductImages: needsProduct,
           category: category || undefined,
+          system: system || undefined,
         });
-        toast.success("Template created.");
+        toast.success(system ? "System template added." : "Template created.");
       }
       onOpenChange(false);
     } catch (error) {
@@ -174,6 +178,18 @@ export function TemplateEditorDialog({
                 />
               </div>
             </div>
+            {!template && viewer?.isAdmin && (
+              <div className="space-y-2">
+                <Label htmlFor="tpl-system">System (all users)</Label>
+                <div className="pt-1">
+                  <Switch
+                    id="tpl-system"
+                    checked={system}
+                    onCheckedChange={setSystem}
+                  />
+                </div>
+              </div>
+            )}
           </div>
           <Button type="submit" className="w-full" disabled={pending}>
             {pending && <Loader2 className="size-4 animate-spin" />}

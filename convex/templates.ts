@@ -44,10 +44,16 @@ export const create = mutation({
     aspectRatio,
     needsProductImages: v.boolean(),
     category: v.optional(v.string()),
+    // Admins may add to the shared system library (e.g. when curating
+    // formats discovered outside the app).
+    system: v.optional(v.boolean()),
   },
   returns: v.id("templates"),
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
+    if (args.system && !isAdminUser(user)) {
+      throw new ConvexError("Only admins can add system templates.");
+    }
     const name = args.name.trim();
     const body = args.body.trim();
     if (!name || !body) {
@@ -62,7 +68,7 @@ export const create = mutation({
       aspectRatio: args.aspectRatio,
       needsProductImages: args.needsProductImages,
       category: args.category?.trim() || undefined,
-      userId: user._id,
+      userId: args.system ? undefined : user._id,
     });
   },
 });
