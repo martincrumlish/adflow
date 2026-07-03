@@ -17,6 +17,8 @@ const isProtected = createRouteMatcher([
   "/admin(.*)",
 ]);
 
+// Next 16's proxy convention (the middleware successor); runs on the
+// Node runtime, which @convex-dev/auth's server module requires.
 export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
   if (isAuthPage(request) && (await convexAuth.isAuthenticated())) {
     return nextjsMiddlewareRedirect(request, "/dashboard");
