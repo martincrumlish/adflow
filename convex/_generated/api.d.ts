@@ -10,6 +10,7 @@
 
 import type * as auth from "../auth.js";
 import type * as brandDna from "../brandDna.js";
+import type * as exampleSeeder from "../exampleSeeder.js";
 import type * as generation from "../generation.js";
 import type * as generationWorker from "../generationWorker.js";
 import type * as http from "../http.js";
@@ -37,6 +38,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   brandDna: typeof brandDna;
+  exampleSeeder: typeof exampleSeeder;
   generation: typeof generation;
   generationWorker: typeof generationWorker;
   http: typeof http;

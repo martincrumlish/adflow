@@ -90,6 +90,8 @@ export default defineSchema({
   templates: defineTable({
     number: v.number(),
     name: v.string(),
+    // One human line shown on the format picker.
+    description: v.optional(v.string()),
     body: v.string(),
     aspectRatio,
     needsProductImages: v.boolean(),

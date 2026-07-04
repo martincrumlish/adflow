@@ -30,6 +30,7 @@ import { errorMessage } from "@/lib/errors";
 export type EditableTemplate = {
   _id: Id<"templates">;
   name: string;
+  description?: string;
   body: string;
   aspectRatio: "1:1" | "4:5" | "9:16";
   needsProductImages: boolean;
@@ -61,6 +62,7 @@ export function TemplateEditorDialog({
   const [pending, setPending] = useState(false);
 
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [body, setBody] = useState("");
   const [aspect, setAspect] = useState<"1:1" | "4:5" | "9:16">("1:1");
   const [needsProduct, setNeedsProduct] = useState(false);
@@ -85,6 +87,7 @@ export function TemplateEditorDialog({
   useEffect(() => {
     if (open) {
       setName(template?.name ?? "");
+      setDescription(template?.description ?? "");
       setBody(template?.body ?? "");
       setAspect(template?.aspectRatio ?? "1:1");
       setNeedsProduct(template?.needsProductImages ?? false);
@@ -133,6 +136,7 @@ export function TemplateEditorDialog({
         await updateTemplate({
           templateId: template._id,
           name,
+          description,
           body,
           aspectRatio: aspect,
           needsProductImages: needsProduct,
@@ -144,6 +148,7 @@ export function TemplateEditorDialog({
       } else {
         await createTemplate({
           name,
+          description: description || undefined,
           body,
           aspectRatio: aspect,
           needsProductImages: needsProduct,
@@ -202,6 +207,15 @@ export function TemplateEditorDialog({
                 placeholder="product"
               />
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="tpl-description">Description (optional)</Label>
+            <Input
+              id="tpl-description"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="One human line shown on the format picker"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="tpl-body">Prompt body</Label>

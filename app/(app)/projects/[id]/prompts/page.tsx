@@ -128,7 +128,7 @@ export default function FormatsPage() {
             New format
           </Button>
         </div>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
           {templates.map((template) => {
             const selected = selectedIds.has(template._id);
             return (
@@ -137,27 +137,36 @@ export default function FormatsPage() {
                 type="button"
                 onClick={() => toggleTemplate(template._id)}
                 className={cn(
-                  "group relative rounded-lg border p-3 text-left transition-colors",
+                  "group relative overflow-hidden rounded-lg border text-left transition-all",
                   selected
-                    ? "border-primary/60 bg-primary/5"
+                    ? "border-primary/70 ring-1 ring-primary/50"
                     : "border-border bg-card hover:border-ring/40",
                 )}
               >
-                <div className="mb-1.5 flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-1.5 text-[13px] font-medium">
-                    <span
-                      className={cn(
-                        "flex size-4 items-center justify-center rounded border",
-                        selected
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border",
-                      )}
-                    >
-                      {selected && <Check className="size-3" />}
-                    </span>
-                    {template.name}
+                <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
+                  {template.exampleImageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={template.exampleImageUrl}
+                      alt={template.name}
+                      className="size-full object-cover object-top transition-transform duration-300 group-hover:scale-[1.03]"
+                    />
+                  ) : (
+                    <div className="flex size-full items-center justify-center text-muted-foreground/40">
+                      <ImageIcon className="size-8" />
+                    </div>
+                  )}
+                  <span
+                    className={cn(
+                      "absolute left-2 top-2 flex size-5 items-center justify-center rounded-full border shadow-sm transition-colors",
+                      selected
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-white/40 bg-black/40 text-transparent backdrop-blur-sm",
+                    )}
+                  >
+                    <Check className="size-3" />
                   </span>
-                  <span className="flex items-center gap-1">
+                  <span className="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                     <span
                       role="button"
                       title={
@@ -171,9 +180,9 @@ export default function FormatsPage() {
                           .then(() => toast.success("Format duplicated."))
                           .catch((error) => toast.error(errorMessage(error)));
                       }}
-                      className="rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-secondary hover:text-foreground group-hover:opacity-100"
+                      className="rounded-md bg-black/50 p-1.5 text-white backdrop-blur-sm transition-colors hover:bg-black/70"
                     >
-                      <Copy className="size-3.5" />
+                      <Copy className="size-3" />
                     </span>
                     {!template.isSystem && (
                       <span
@@ -184,40 +193,47 @@ export default function FormatsPage() {
                           setEditorTarget(template);
                           setEditorOpen(true);
                         }}
-                        className="rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-secondary hover:text-foreground group-hover:opacity-100"
+                        className="rounded-md bg-black/50 p-1.5 text-white backdrop-blur-sm transition-colors hover:bg-black/70"
                       >
-                        <PencilLine className="size-3.5" />
+                        <PencilLine className="size-3" />
                       </span>
                     )}
                   </span>
                 </div>
-                <p className="mb-2 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
-                  {template.body}
-                </p>
-                <div className="flex items-center gap-1.5">
-                  <Badge
-                    variant="outline"
-                    className="h-4.5 px-1.5 text-[10px] text-muted-foreground"
-                  >
-                    {template.aspectRatio}
-                  </Badge>
-                  {template.needsProductImages && (
-                    <Badge
-                      variant="outline"
-                      className="h-4.5 gap-1 px-1.5 text-[10px] text-muted-foreground"
-                    >
-                      <ImageIcon className="size-2.5" />
-                      product
-                    </Badge>
-                  )}
-                  {!template.isSystem && (
-                    <Badge
-                      variant="secondary"
-                      className="h-4.5 px-1.5 text-[10px]"
-                    >
-                      custom
-                    </Badge>
-                  )}
+                <div className="space-y-1 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-[13px] font-medium">
+                      {template.name}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1">
+                      {template.needsProductImages && (
+                        <Badge
+                          variant="outline"
+                          className="h-4.5 gap-1 px-1.5 text-[10px] text-muted-foreground"
+                          title="Uses your product photos"
+                        >
+                          <ImageIcon className="size-2.5" />
+                        </Badge>
+                      )}
+                      <Badge
+                        variant="outline"
+                        className="h-4.5 px-1.5 text-[10px] text-muted-foreground"
+                      >
+                        {template.aspectRatio}
+                      </Badge>
+                      {!template.isSystem && (
+                        <Badge
+                          variant="secondary"
+                          className="h-4.5 px-1.5 text-[10px]"
+                        >
+                          custom
+                        </Badge>
+                      )}
+                    </span>
+                  </div>
+                  <p className="line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
+                    {template.description ?? template.body}
+                  </p>
                 </div>
               </button>
             );

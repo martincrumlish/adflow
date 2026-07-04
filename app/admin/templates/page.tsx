@@ -96,7 +96,7 @@ export default function AdminTemplatesPage() {
               </div>
               <div className="mb-3 flex items-start gap-3">
                 <p className="line-clamp-3 flex-1 text-xs leading-relaxed text-muted-foreground">
-                  {template.body}
+                  {template.description ?? template.body}
                 </p>
                 {template.exampleImageUrl && (
                   // eslint-disable-next-line @next/next/no-img-element

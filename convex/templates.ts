@@ -1,5 +1,10 @@
 import { ConvexError, v } from "convex/values";
-import { internalMutation, mutation, query } from "./_generated/server";
+import {
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+} from "./_generated/server";
 import { currentUser, isAdminUser, requireUser } from "./lib/access";
 import { aspectRatio } from "./schema";
 
@@ -8,6 +13,7 @@ const templateDoc = v.object({
   _creationTime: v.number(),
   number: v.number(),
   name: v.string(),
+  description: v.optional(v.string()),
   body: v.string(),
   aspectRatio,
   needsProductImages: v.boolean(),
@@ -60,6 +66,7 @@ export const generateUploadUrl = mutation({
 export const create = mutation({
   args: {
     name: v.string(),
+    description: v.optional(v.string()),
     body: v.string(),
     aspectRatio,
     needsProductImages: v.boolean(),
@@ -85,6 +92,7 @@ export const create = mutation({
     return await ctx.db.insert("templates", {
       number: nextNumber,
       name,
+      description: args.description?.trim() || undefined,
       body,
       aspectRatio: args.aspectRatio,
       needsProductImages: args.needsProductImages,
@@ -99,6 +107,7 @@ export const update = mutation({
   args: {
     templateId: v.id("templates"),
     name: v.optional(v.string()),
+    description: v.optional(v.string()),
     body: v.optional(v.string()),
     aspectRatio: v.optional(aspectRatio),
     needsProductImages: v.optional(v.boolean()),
@@ -128,6 +137,9 @@ export const update = mutation({
     }
     await ctx.db.patch(args.templateId, {
       ...(args.name !== undefined ? { name: args.name.trim() } : {}),
+      ...(args.description !== undefined
+        ? { description: args.description.trim() || undefined }
+        : {}),
       ...(args.body !== undefined ? { body: args.body.trim() } : {}),
       ...(args.aspectRatio !== undefined
         ? { aspectRatio: args.aspectRatio }
@@ -167,7 +179,8 @@ export const duplicate = mutation({
     // deleted with their owning template, so sharing one would dangle.
     return await ctx.db.insert("templates", {
       number: nextNumber,
-      name: `${template.name}-copy`,
+      name: `${template.name} (copy)`,
+      description: template.description,
       body: template.body,
       aspectRatio: template.aspectRatio,
       needsProductImages: template.needsProductImages,
@@ -195,6 +208,170 @@ export const remove = mutation({
     return null;
   },
 });
+
+/** List of system templates, for the example-image seeder. */
+export const listSystemInternal = internalQuery({
+  args: {},
+  returns: v.array(
+    v.object({
+      _id: v.id("templates"),
+      number: v.number(),
+      name: v.string(),
+      body: v.string(),
+      aspectRatio,
+      needsProductImages: v.boolean(),
+      hasExample: v.boolean(),
+    }),
+  ),
+  handler: async (ctx) => {
+    const system = await ctx.db
+      .query("templates")
+      .withIndex("by_user", (q) => q.eq("userId", undefined))
+      .collect();
+    return system
+      .sort((a, b) => a.number - b.number)
+      .map((t) => ({
+        _id: t._id,
+        number: t.number,
+        name: t.name,
+        body: t.body,
+        aspectRatio: t.aspectRatio,
+        needsProductImages: t.needsProductImages,
+        hasExample: t.exampleImageId !== undefined,
+      }));
+  },
+});
+
+/** Attach a freshly generated example render to a template. */
+export const setExampleImage = internalMutation({
+  args: { templateId: v.id("templates"), storageId: v.id("_storage") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const template = await ctx.db.get(args.templateId);
+    if (!template) return null;
+    if (
+      template.exampleImageId &&
+      template.exampleImageId !== args.storageId
+    ) {
+      await ctx.storage.delete(template.exampleImageId);
+    }
+    await ctx.db.patch(args.templateId, {
+      exampleImageId: args.storageId,
+      exampleFalUrl: undefined,
+    });
+    return null;
+  },
+});
+
+/**
+ * One-off migration: replace slug names on system templates with
+ * human titles and add picker descriptions. Idempotent.
+ */
+export const humanizeSystemTemplates = internalMutation({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx) => {
+    const system = await ctx.db
+      .query("templates")
+      .withIndex("by_user", (q) => q.eq("userId", undefined))
+      .collect();
+    let updated = 0;
+    for (const template of system) {
+      const human = HUMAN_NAMES[template.name];
+      if (!human) continue;
+      await ctx.db.patch(template._id, {
+        name: human.name,
+        description: human.description,
+      });
+      updated++;
+    }
+    return updated;
+  },
+});
+
+const HUMAN_NAMES: Record<string, { name: string; description: string }> = {
+  headline: {
+    name: "Headline",
+    description: "A clean studio shot of your product under a bold headline.",
+  },
+  "offer-promotion": {
+    name: "Offer & Promotion",
+    description:
+      "Punchy discount ad with an offer badge and a clear call to action.",
+  },
+  "us-vs-them": {
+    name: "Us vs. Them",
+    description:
+      "Two-column comparison that makes your brand the obvious choice.",
+  },
+  "testimonial-card": {
+    name: "Testimonial Card",
+    description:
+      "A five-star customer quote presented like a polished review card.",
+  },
+  "review-screenshot": {
+    name: "Review Screenshot",
+    description:
+      "Looks like a real verified-purchase review from an online store.",
+  },
+  "stat-callout": {
+    name: "Stat Callout",
+    description:
+      "One big number that makes the strongest case for your product.",
+  },
+  "ugc-selfie": {
+    name: "UGC Selfie",
+    description:
+      "A casual phone photo of a real-looking customer with your product.",
+  },
+  "before-after": {
+    name: "Before & After",
+    description:
+      "Split-screen transformation with your product as the difference.",
+  },
+  "press-editorial": {
+    name: "Press Editorial",
+    description:
+      "Magazine-style feature that reads like earned press, not an ad.",
+  },
+  "faux-iphone-notes": {
+    name: "iPhone Notes",
+    description: "A relatable list written in a familiar iPhone note.",
+  },
+  "feature-callout": {
+    name: "Feature Callout",
+    description: "Your product annotated with the features that matter.",
+  },
+  manifesto: {
+    name: "Manifesto",
+    description: "A bold typographic statement of what your brand stands for.",
+  },
+  "text-post-confession": {
+    name: "Text-Post Confession",
+    description:
+      "A funny, overshare-style social post that doesn't feel like an ad.",
+  },
+  "spec-strip-banner": {
+    name: "Spec Strip",
+    description: "Title bar and three key stats above your product lineup.",
+  },
+  "benefit-checklist": {
+    name: "Benefit Checklist",
+    description: "Headline plus three green checks that close the argument.",
+  },
+  "variant-grid": {
+    name: "Variant Grid",
+    description: "Your product range in a clean color-blocked grid.",
+  },
+  "sticker-lifestyle": {
+    name: "Sticker Lifestyle",
+    description: "A lifestyle photo with playful sticker badges.",
+  },
+  "offer-stack": {
+    name: "Offer Stack",
+    description: "Everything included in the deal, laid out and labeled.",
+  },
+};
 
 /** Cache the FAL URL so each style example uploads to FAL once. */
 export const setExampleFalUrl = internalMutation({
