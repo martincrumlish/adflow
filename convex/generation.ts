@@ -68,6 +68,60 @@ export const jobsForProject = query({
   },
 });
 
+/** Shared kickoff used by the public mutation and the Phase 2 chain. */
+async function beginRun(
+  ctx: MutationCtx,
+  projectId: Id<"projects">,
+  quality: "low" | "medium" | "high",
+  promptIds?: Id<"prompts">[],
+) {
+  const project = await ctx.db.get(projectId);
+  if (!project) throw new ConvexError("Project not found");
+  const active = await activeJobs(ctx, projectId);
+  if (active.length > 0) {
+    throw new ConvexError("Generation is already running.");
+  }
+  const allPrompts = await ctx.db
+    .query("prompts")
+    .withIndex("by_project", (q) => q.eq("projectId", projectId))
+    .collect();
+  const wanted = promptIds
+    ? allPrompts.filter((p) => promptIds.includes(p._id))
+    : allPrompts;
+  if (wanted.length === 0) {
+    throw new ConvexError("No prompts selected. Generate prompts first.");
+  }
+  // Clear finished jobs so the Generate view shows only this run.
+  const oldJobs = await ctx.db
+    .query("jobs")
+    .withIndex("by_project", (q) => q.eq("projectId", projectId))
+    .collect();
+  for (const job of oldJobs) await ctx.db.delete(job._id);
+  for (const prompt of wanted.sort(
+    (a, b) => a.templateNumber - b.templateNumber,
+  )) {
+    await ctx.db.insert("jobs", {
+      projectId,
+      promptId: prompt._id,
+      status: "queued",
+      quality,
+    });
+  }
+  if (project.status !== "generating") {
+    await ctx.db.patch(projectId, { status: "generating" });
+  }
+  // Spin up a bounded worker pool; each worker claims one job at a
+  // time and reschedules itself until the queue drains.
+  const workers = Math.min(concurrencyCap(), wanted.length);
+  for (let i = 0; i < workers; i++) {
+    await ctx.scheduler.runAfter(
+      i * 250,
+      internal.generationWorker.processQueue,
+      { projectId },
+    );
+  }
+}
+
 export const start = mutation({
   args: {
     projectId: v.id("projects"),
@@ -76,50 +130,18 @@ export const start = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const { project } = await requireProject(ctx, args.projectId);
-    const active = await activeJobs(ctx, args.projectId);
-    if (active.length > 0) {
-      throw new ConvexError("Generation is already running.");
-    }
-    const allPrompts = await ctx.db
-      .query("prompts")
-      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
-      .collect();
-    const wanted = args.promptIds
-      ? allPrompts.filter((p) => args.promptIds!.includes(p._id))
-      : allPrompts;
-    if (wanted.length === 0) {
-      throw new ConvexError("No prompts selected. Generate prompts first.");
-    }
-    // Clear finished jobs so the Generate view shows only this run.
-    const oldJobs = await ctx.db
-      .query("jobs")
-      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
-      .collect();
-    for (const job of oldJobs) await ctx.db.delete(job._id);
-    for (const prompt of wanted.sort(
-      (a, b) => a.templateNumber - b.templateNumber,
-    )) {
-      await ctx.db.insert("jobs", {
-        projectId: args.projectId,
-        promptId: prompt._id,
-        status: "queued",
-        quality: args.quality,
-      });
-    }
-    if (project.status !== "generating") {
-      await ctx.db.patch(args.projectId, { status: "generating" });
-    }
-    // Spin up a bounded worker pool; each worker claims one job at a
-    // time and reschedules itself until the queue drains.
-    const workers = Math.min(concurrencyCap(), wanted.length);
-    for (let i = 0; i < workers; i++) {
-      await ctx.scheduler.runAfter(
-        i * 250,
-        internal.generationWorker.processQueue,
-        { projectId: args.projectId },
-      );
-    }
+    await requireProject(ctx, args.projectId);
+    await beginRun(ctx, args.projectId, args.quality, args.promptIds);
+    return null;
+  },
+});
+
+/** Called by Phase 2 when the user chose the one-click flow. */
+export const startAuto = internalMutation({
+  args: { projectId: v.id("projects"), quality: jobQuality },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await beginRun(ctx, args.projectId, args.quality);
     return null;
   },
 });

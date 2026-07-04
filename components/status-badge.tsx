@@ -16,8 +16,8 @@ const STATUS_CONFIG: Record<
   setup: { label: "Setup", dot: "bg-zinc-400" },
   researching: { label: "Researching", dot: "bg-sky-400", pulse: true },
   research_ready: { label: "Brand DNA ready", dot: "bg-sky-400" },
-  prompting: { label: "Writing prompts", dot: "bg-violet-400", pulse: true },
-  prompts_ready: { label: "Prompts ready", dot: "bg-violet-400" },
+  prompting: { label: "Preparing ads", dot: "bg-violet-400", pulse: true },
+  prompts_ready: { label: "Ready to generate", dot: "bg-violet-400" },
   generating: { label: "Generating", dot: "bg-amber-400", pulse: true },
   done: { label: "Done", dot: "bg-emerald-400" },
 };

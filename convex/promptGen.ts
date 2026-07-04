@@ -4,6 +4,7 @@ import OpenAI from "openai";
 import { internal } from "./_generated/api";
 import { action } from "./_generated/server";
 import { promptGenerationPrompt } from "./lib/prompts";
+import { jobQuality } from "./schema";
 
 const OPENROUTER_MODEL =
   process.env.OPENROUTER_MODEL ?? "anthropic/claude-sonnet-5";
@@ -30,10 +31,17 @@ function parseJsonResponse(raw: string): unknown {
 
 /**
  * Phase 2: fill every selected template with brand-specific copy via
- * OpenRouter (no web search) and persist the resulting prompts.
+ * OpenRouter (no web search) and persist the resulting prompts. With
+ * `autoStart`, image generation kicks off immediately after — the
+ * one-click "Generate ads" flow where copywriting stays behind the
+ * scenes.
  */
 export const run = action({
-  args: { projectId: v.id("projects") },
+  args: {
+    projectId: v.id("projects"),
+    autoStart: v.optional(v.boolean()),
+    quality: v.optional(jobQuality),
+  },
   returns: v.null(),
   handler: async (ctx, args) => {
     const project = await ctx.runQuery(internal.projects.getOwned, {
@@ -132,6 +140,15 @@ export const run = action({
       throw new ConvexError(
         `Prompt generation failed: ${message.slice(0, 200)}`,
       );
+    }
+    // Copy is saved; chain straight into image generation for the
+    // one-click flow. Failures here are generation errors, not copy
+    // errors, so they surface as-is.
+    if (args.autoStart) {
+      await ctx.runMutation(internal.generation.startAuto, {
+        projectId: args.projectId,
+        quality: args.quality ?? "high",
+      });
     }
     return null;
   },

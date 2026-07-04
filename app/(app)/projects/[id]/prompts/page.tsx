@@ -13,7 +13,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
@@ -158,10 +158,12 @@ export default function PromptsPage() {
   const duplicateTemplate = useMutation(api.templates.duplicate);
   const generate = useAction(api.promptGen.run);
 
+  const router = useRouter();
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorTarget, setEditorTarget] = useState<EditableTemplate | null>(
     null,
   );
+  const [quality, setQuality] = useState<"low" | "medium" | "high">("high");
 
   // Local-first selection (state + ref) so rapid toggles don't race
   // each other or the server round-trip.
@@ -187,9 +189,18 @@ export default function PromptsPage() {
     );
   }
 
-  function startGeneration() {
+  /** One-click flow: copy is written behind the scenes, then images. */
+  function generateAds() {
+    generate({ projectId, autoStart: true, quality }).catch((error) =>
+      toast.error(errorMessage(error, "Could not prepare the ads.")),
+    );
+    router.push(`/projects/${projectId}/generate`);
+  }
+
+  /** Power-user flow: write the copy only, review it on this page. */
+  function writeCopyOnly() {
     generate({ projectId }).catch((error) =>
-      toast.error(errorMessage(error, "Prompt generation failed.")),
+      toast.error(errorMessage(error, "Could not write the ad copy.")),
     );
   }
 
@@ -334,9 +345,9 @@ export default function PromptsPage() {
         </div>
       </section>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Button
-          onClick={startGeneration}
+          onClick={generateAds}
           disabled={
             prompting || generating || !hasDna || selectedIds.size === 0
           }
@@ -348,10 +359,37 @@ export default function PromptsPage() {
             <Sparkles className="size-4" />
           )}
           {prompting
-            ? "Writing prompts…"
-            : prompts && prompts.length > 0
-              ? `Regenerate prompts (${selectedIds.size})`
-              : `Generate prompts (${selectedIds.size})`}
+            ? "Preparing ads…"
+            : `Generate ${selectedIds.size} ad${selectedIds.size === 1 ? "" : "s"}`}
+        </Button>
+        <Select
+          value={quality}
+          onValueChange={(value) =>
+            setQuality(value as "low" | "medium" | "high")
+          }
+          disabled={prompting || generating}
+        >
+          <SelectTrigger size="sm" className="w-28">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="low">Low (draft)</SelectItem>
+            <SelectItem value="medium">Medium</SelectItem>
+            <SelectItem value="high">High</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={writeCopyOnly}
+          disabled={
+            prompting || generating || !hasDna || selectedIds.size === 0
+          }
+          className="text-muted-foreground"
+        >
+          {prompts && prompts.length > 0
+            ? "Rewrite copy for review"
+            : "Write copy for review first"}
         </Button>
         {!hasDna && (
           <p className="text-xs text-muted-foreground">

@@ -130,16 +130,30 @@ export default function GeneratePage() {
   }
   if (project === null) return null;
 
+  // One-click flow: ad copy is being written before the run starts.
+  if (project.status === "prompting") {
+    return (
+      <div className="flex flex-col items-center justify-center rounded-lg border border-border bg-card py-20 text-center">
+        <Loader2 className="mb-3 size-8 animate-spin text-primary" />
+        <p className="mb-1 text-sm font-medium">Preparing your ads…</p>
+        <p className="max-w-sm text-sm text-muted-foreground">
+          Writing on-brand copy for each selected format. Generation starts
+          automatically — images will appear here and in the gallery.
+        </p>
+      </div>
+    );
+  }
+
   if (prompts.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-20 text-center">
         <Play className="mb-3 size-8 text-muted-foreground/50" />
         <p className="mb-1 text-sm font-medium">Nothing to generate yet</p>
         <p className="mb-4 max-w-sm text-sm text-muted-foreground">
-          Generate prompts from your selected templates first.
+          Pick your ad formats and hit Generate — the copy is written for you.
         </p>
         <Button asChild size="sm">
-          <Link href={`/projects/${projectId}/prompts`}>Go to Prompts</Link>
+          <Link href={`/projects/${projectId}/prompts`}>Choose formats</Link>
         </Button>
       </div>
     );

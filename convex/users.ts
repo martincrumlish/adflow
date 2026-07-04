@@ -1,4 +1,11 @@
-import { createAccount, getAuthUserId } from "@convex-dev/auth/server";
+import {
+  createAccount,
+  getAuthSessionId,
+  getAuthUserId,
+  invalidateSessions,
+  modifyAccountCredentials,
+  retrieveAccount,
+} from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
@@ -8,7 +15,12 @@ import {
   mutation,
   query,
 } from "./_generated/server";
-import { currentAdmin, isAdminUser, requireAdmin } from "./lib/access";
+import {
+  currentAdmin,
+  isAdminUser,
+  requireAdmin,
+  requireUser,
+} from "./lib/access";
 
 export const viewer = query({
   args: {},
@@ -17,6 +29,7 @@ export const viewer = query({
     v.object({
       _id: v.id("users"),
       email: v.optional(v.string()),
+      name: v.optional(v.string()),
       isAdmin: v.boolean(),
       planName: v.union(v.string(), v.null()),
     }),
@@ -30,9 +43,65 @@ export const viewer = query({
     return {
       _id: user._id,
       email: user.email,
+      name: user.name,
       isAdmin: isAdminUser(user),
       planName: plan?.name ?? null,
     };
+  },
+});
+
+export const updateName = mutation({
+  args: { name: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    const name = args.name.trim().slice(0, 80);
+    await ctx.db.patch(user._id, { name: name || undefined });
+    return null;
+  },
+});
+
+/** The signed-in user's email, for credential operations in actions. */
+export const myEmail = internalQuery({
+  args: {},
+  returns: v.union(v.string(), v.null()),
+  handler: async (ctx) => {
+    const user = await requireUser(ctx);
+    return user.email ?? null;
+  },
+});
+
+export const changePassword = action({
+  args: { currentPassword: v.string(), newPassword: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const email = await ctx.runQuery(internal.users.myEmail, {});
+    if (!email) throw new ConvexError("Not signed in.");
+    if (args.newPassword.length < 8) {
+      throw new ConvexError("New password must be at least 8 characters.");
+    }
+    try {
+      await retrieveAccount(ctx, {
+        provider: "password",
+        account: { id: email, secret: args.currentPassword },
+      });
+    } catch {
+      throw new ConvexError("Current password is incorrect.");
+    }
+    await modifyAccountCredentials(ctx, {
+      provider: "password",
+      account: { id: email, secret: args.newPassword },
+    });
+    // Sign out every other session, keep this one.
+    const userId = await getAuthUserId(ctx);
+    const sessionId = await getAuthSessionId(ctx);
+    if (userId) {
+      await invalidateSessions(ctx, {
+        userId,
+        except: sessionId ? [sessionId] : [],
+      });
+    }
+    return null;
   },
 });
 

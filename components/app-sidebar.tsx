@@ -3,20 +3,31 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
 import {
+  ChevronsUpDown,
   FolderKanban,
   LayoutDashboard,
   LayoutTemplate,
   LogOut,
   Plus,
   ShieldCheck,
+  UserRound,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { Logo } from "@/components/logo";
 import { NewProjectDialog } from "@/components/new-project-dialog";
+import { ProfileDialog } from "@/components/profile-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { statusRoute, type ProjectStatus } from "@/components/status-badge";
@@ -61,6 +72,7 @@ export function AppSidebar() {
   const { signOut } = useAuthActions();
   const viewer = useQuery(api.users.viewer);
   const projects = useQuery(api.projects.list);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   return (
     <aside className="flex h-screen w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar">
@@ -130,31 +142,51 @@ export function AppSidebar() {
         </div>
       </nav>
       <div className="border-t border-sidebar-border p-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <p className="truncate text-xs font-medium">
-              {viewer?.email ?? "…"}
-            </p>
-            {viewer?.planName && (
-              <p className="truncate text-[11px] text-muted-foreground">
-                {viewer.planName} plan
-              </p>
-            )}
-          </div>
-          <div className="flex shrink-0 items-center gap-0.5">
-            <ThemeToggle />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7 shrink-0 text-muted-foreground hover:text-foreground"
-              title="Sign out"
-              onClick={() => void signOut().then(() => router.push("/signin"))}
-            >
-              <LogOut className="size-4" />
-            </Button>
-          </div>
+        <div className="flex items-center gap-1">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-sidebar-accent/60"
+              >
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-medium uppercase">
+                  {(viewer?.name ?? viewer?.email ?? "?").slice(0, 1)}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-medium">
+                    {viewer?.name || (viewer?.email ?? "…")}
+                  </span>
+                  <span className="block truncate text-[11px] text-muted-foreground">
+                    {viewer?.name
+                      ? viewer.email
+                      : viewer?.planName
+                        ? `${viewer.planName} plan`
+                        : ""}
+                  </span>
+                </span>
+                <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" side="top" className="w-52">
+              <DropdownMenuItem onClick={() => setProfileOpen(true)}>
+                <UserRound className="size-4" />
+                Profile
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() =>
+                  void signOut().then(() => router.push("/signin"))
+                }
+              >
+                <LogOut className="size-4" />
+                Log out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <ThemeToggle />
         </div>
       </div>
+      <ProfileDialog open={profileOpen} onOpenChange={setProfileOpen} />
     </aside>
   );
 }
