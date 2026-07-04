@@ -14,11 +14,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { Logo } from "@/components/logo";
 import { NewProjectDialog } from "@/components/new-project-dialog";
-import { ProfileDialog } from "@/components/profile-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -72,7 +70,6 @@ export function AppSidebar() {
   const { signOut } = useAuthActions();
   const viewer = useQuery(api.users.viewer);
   const projects = useQuery(api.projects.list);
-  const [profileOpen, setProfileOpen] = useState(false);
 
   return (
     <aside className="flex h-screen w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar">
@@ -168,9 +165,11 @@ export function AppSidebar() {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" side="top" className="w-52">
-              <DropdownMenuItem onClick={() => setProfileOpen(true)}>
-                <UserRound className="size-4" />
-                Profile
+              <DropdownMenuItem asChild>
+                <Link href="/profile">
+                  <UserRound className="size-4" />
+                  Profile
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -186,7 +185,6 @@ export function AppSidebar() {
           <ThemeToggle />
         </div>
       </div>
-      <ProfileDialog open={profileOpen} onOpenChange={setProfileOpen} />
     </aside>
   );
 }

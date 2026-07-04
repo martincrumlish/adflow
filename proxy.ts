@@ -15,6 +15,7 @@ const isProtected = createRouteMatcher([
   "/projects(.*)",
   "/templates(.*)",
   "/admin(.*)",
+  "/profile(.*)",
 ]);
 
 // Next 16's proxy convention (the middleware successor); runs on the
