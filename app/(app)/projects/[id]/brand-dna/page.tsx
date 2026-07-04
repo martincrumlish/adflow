@@ -264,7 +264,7 @@ export default function BrandDnaPage() {
           <div className="flex justify-end">
             <Button asChild size="sm" className="gap-2">
               <Link href={`/projects/${projectId}/prompts`}>
-                Continue to Prompts
+                Choose ad formats
                 <ArrowRight className="size-4" />
               </Link>
             </Button>

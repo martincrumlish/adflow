@@ -60,6 +60,7 @@ export default function GalleryPage() {
   const project = useQuery(api.projects.get, { projectId });
   const images = useQuery(api.images.gallery, { projectId });
   const jobs = useQuery(api.generation.jobsForProject, { projectId });
+  const viewer = useQuery(api.users.viewer);
   const regenerateOne = useMutation(api.generation.regenerateOne);
 
   const [lightbox, setLightbox] = useState<GalleryImage | null>(null);
@@ -171,7 +172,7 @@ export default function GalleryPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        title="View prompt"
+                        title="View details"
                         className="size-7 text-white hover:bg-white/20 hover:text-white"
                         onClick={() => setLightbox(image)}
                       >
@@ -224,14 +225,16 @@ export default function GalleryPage() {
                   className="mx-auto max-h-[55vh] w-auto rounded-lg border border-border"
                 />
               )}
-              <div className="rounded-md border border-border bg-muted/40 p-3">
-                <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  Prompt used
-                </p>
-                <p className="max-h-32 overflow-y-auto text-xs leading-relaxed text-foreground/90">
-                  {lightbox.promptText}
-                </p>
-              </div>
+              {viewer?.isAdmin && (
+                <div className="rounded-md border border-border bg-muted/40 p-3">
+                  <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Prompt used (admin only)
+                  </p>
+                  <p className="max-h-32 overflow-y-auto text-xs leading-relaxed text-foreground/90">
+                    {lightbox.promptText}
+                  </p>
+                </div>
+              )}
               <div className="flex gap-2">
                 <Button
                   size="sm"

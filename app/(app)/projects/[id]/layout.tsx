@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 const STEPS = [
   { slug: "setup", label: "Setup" },
   { slug: "brand-dna", label: "Brand DNA" },
-  { slug: "prompts", label: "Ad copy" },
+  { slug: "prompts", label: "Formats" },
   { slug: "generate", label: "Generate" },
   { slug: "gallery", label: "Gallery" },
 ] as const;

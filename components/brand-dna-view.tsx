@@ -83,7 +83,7 @@ export function parseBrandDna(document: string): Section[] {
 
     const content = stripMarkdown(line.replace(/^[-•*]\s+/, ""));
     const labelMatch = content.match(
-      /^([A-Za-z][A-Za-z0-9 /&'()-]{1,44}?):\s+(.+)$/,
+      /^([A-Za-z][A-Za-z0-9 ./&'()[\]-]{1,44}?):\s+(.+)$/,
     );
     if (labelMatch) {
       current.items.push({ label: labelMatch[1], value: labelMatch[2] });

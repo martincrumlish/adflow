@@ -213,7 +213,7 @@ export default function GeneratePage() {
           {!generating && (
             <div>
               <p className="mb-2 text-xs font-medium text-muted-foreground">
-                Prompts to run
+                Ads to include
               </p>
               <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
                 {prompts.map((prompt) => {
