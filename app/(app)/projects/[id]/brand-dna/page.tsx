@@ -15,6 +15,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { BrandDnaDocument, HexText } from "@/components/brand-dna-view";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -134,9 +135,10 @@ export default function BrandDnaPage() {
             <CardHeader>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <CardTitle>Brand DNA document</CardTitle>
+                  <CardTitle>Brand DNA</CardTitle>
                   <CardDescription>
-                    The research output. Edit anything the model got wrong.
+                    Everything AdFlow learned about {project.brandName}. Edit
+                    anything that&apos;s off.
                   </CardDescription>
                 </div>
                 <div className="flex shrink-0 gap-2">
@@ -192,9 +194,7 @@ export default function BrandDnaPage() {
                   </div>
                 </div>
               ) : (
-                <pre className="max-h-[32rem] overflow-y-auto whitespace-pre-wrap font-mono text-xs leading-relaxed text-foreground/90">
-                  {dna.document}
-                </pre>
+                <BrandDnaDocument document={dna.document} />
               )}
             </CardContent>
           </Card>
@@ -203,10 +203,10 @@ export default function BrandDnaPage() {
             <CardHeader>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <CardTitle>Image generation prompt modifier</CardTitle>
+                  <CardTitle>Visual style</CardTitle>
                   <CardDescription>
-                    Prepended to every image prompt so each ad matches the
-                    brand.
+                    The distilled look and feel applied to every ad in this
+                    project.
                   </CardDescription>
                 </div>
                 {!editingModifier && (
@@ -250,11 +250,11 @@ export default function BrandDnaPage() {
                 </div>
               ) : dna.promptModifier ? (
                 <p className="text-sm leading-relaxed text-foreground/90">
-                  {dna.promptModifier}
+                  <HexText text={dna.promptModifier} />
                 </p>
               ) : (
                 <p className="text-sm italic text-muted-foreground">
-                  No modifier was extracted — edit to add one, or re-run
+                  No visual style was extracted — edit to add one, or re-run
                   research.
                 </p>
               )}

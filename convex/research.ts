@@ -6,6 +6,23 @@ import { action } from "./_generated/server";
 import { brandResearchPrompt, extractPromptModifier } from "./lib/prompts";
 
 /**
+ * Models sometimes narrate before the document despite instructions;
+ * everything before the BRAND DNA DOCUMENT header is plumbing, not
+ * product, so it never reaches the user.
+ */
+function stripPreamble(document: string): string {
+  const lines = document.split("\n");
+  const index = lines.findIndex((line) =>
+    line
+      .trim()
+      .replace(/^[#*\s]+/, "")
+      .toUpperCase()
+      .startsWith("BRAND DNA DOCUMENT"),
+  );
+  return index > 0 ? lines.slice(index).join("\n") : document;
+}
+
+/**
  * Phase 1: brand research via OpenRouter with its server-side
  * web-search tool. Produces the Brand DNA document + prompt modifier.
  */
@@ -47,12 +64,20 @@ export const run = action({
         ],
         messages: [
           {
+            role: "system",
+            content:
+              "Output only the Brand DNA document itself, starting at the" +
+              " BRAND DNA DOCUMENT header. No preamble, commentary, or" +
+              " closing remarks.",
+          },
+          {
             role: "user",
             content: brandResearchPrompt(project.brandName, project.brandUrl),
           },
         ],
       });
-      const document = response.choices[0]?.message?.content ?? "";
+      const raw = response.choices[0]?.message?.content ?? "";
+      const document = stripPreamble(raw);
       if (!document.trim()) {
         throw new Error("The model returned an empty document.");
       }
