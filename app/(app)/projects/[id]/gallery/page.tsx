@@ -74,16 +74,6 @@ export default function GalleryPage() {
     [jobs],
   );
 
-  const groups = useMemo(() => {
-    const map = new Map<string, GalleryImage[]>();
-    for (const image of images ?? []) {
-      const list = map.get(image.templateName) ?? [];
-      list.push(image);
-      map.set(image.templateName, list);
-    }
-    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
-  }, [images]);
-
   function regenerate(image: GalleryImage) {
     regenerateOne({ promptId: image.promptId })
       .then(() => toast.success(`Regenerating “${image.templateName}”…`))
@@ -125,75 +115,69 @@ export default function GalleryPage() {
           </Button>
         </div>
       ) : (
-        groups.map(([templateName, groupImages]) => (
-          <section key={templateName}>
-            <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-              {templateName}
-              <span className="text-xs font-normal text-muted-foreground">
-                {groupImages.length}
-              </span>
-            </h2>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
-              {groupImages.map((image) => (
-                <figure
-                  key={image._id}
-                  className="group relative overflow-hidden rounded-lg border border-border bg-card"
-                >
-                  {image.url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={image.url}
-                      alt={image.templateName}
-                      className="w-full cursor-zoom-in"
-                      onClick={() => setLightbox(image)}
-                    />
-                  ) : (
-                    <div className="flex aspect-square items-center justify-center text-muted-foreground">
-                      <ImageIcon className="size-6" />
-                    </div>
-                  )}
-                  <figcaption className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-gradient-to-t from-black/80 to-transparent p-2 pt-8 opacity-0 transition-opacity group-hover:opacity-100">
-                    <Badge
-                      variant="outline"
-                      className="h-4.5 border-white/20 px-1.5 text-[10px] text-white/80"
+        <div className="columns-2 gap-3 md:columns-3 xl:columns-4">
+          {images.map((image) => (
+            <figure
+              key={image._id}
+              className="group mb-3 break-inside-avoid overflow-hidden rounded-lg border border-border bg-card"
+            >
+              <div className="relative">
+                {image.url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={image.url}
+                    alt={image.templateName}
+                    className="w-full cursor-zoom-in"
+                    onClick={() => setLightbox(image)}
+                  />
+                ) : (
+                  <div className="flex aspect-square items-center justify-center text-muted-foreground">
+                    <ImageIcon className="size-6" />
+                  </div>
+                )}
+                <span className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-end gap-1 bg-gradient-to-t from-black/70 to-transparent p-2 pt-8 opacity-0 transition-opacity group-hover:opacity-100">
+                  <span className="pointer-events-auto flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Download"
+                      className="size-7 text-white hover:bg-white/20 hover:text-white"
+                      onClick={() => void downloadImage(image)}
                     >
-                      {image.aspectRatio}
-                    </Badge>
-                    <span className="pointer-events-auto flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Download"
-                        className="size-7 text-white hover:bg-white/20 hover:text-white"
-                        onClick={() => void downloadImage(image)}
-                      >
-                        <Download className="size-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="View details"
-                        className="size-7 text-white hover:bg-white/20 hover:text-white"
-                        onClick={() => setLightbox(image)}
-                      >
-                        <Eye className="size-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Regenerate this one"
-                        className="size-7 text-white hover:bg-white/20 hover:text-white"
-                        onClick={() => regenerate(image)}
-                      >
-                        <RefreshCw className="size-3.5" />
-                      </Button>
-                    </span>
-                  </figcaption>
-                </figure>
-              ))}
-            </div>
-          </section>
-        ))
+                      <Download className="size-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="View details"
+                      className="size-7 text-white hover:bg-white/20 hover:text-white"
+                      onClick={() => setLightbox(image)}
+                    >
+                      <Eye className="size-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Regenerate this one"
+                      className="size-7 text-white hover:bg-white/20 hover:text-white"
+                      onClick={() => regenerate(image)}
+                    >
+                      <RefreshCw className="size-3.5" />
+                    </Button>
+                  </span>
+                </span>
+              </div>
+              <figcaption className="flex items-center justify-between gap-2 border-t border-border px-2.5 py-1.5">
+                <span className="truncate text-xs font-medium">
+                  {image.templateName}
+                </span>
+                <span className="shrink-0 text-[10px] text-muted-foreground">
+                  {image.aspectRatio}
+                </span>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
       )}
 
       <Dialog
