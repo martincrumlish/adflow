@@ -1,6 +1,7 @@
 "use node";
 import { fal } from "@fal-ai/client";
 import { v } from "convex/values";
+import OpenAI from "openai";
 import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
 
@@ -75,6 +76,7 @@ export const processQueue = internalAction({
     if (!bundle) return null; // Queue drained or another worker is on it.
 
     fal.config({ credentials: process.env.FAL_KEY });
+    const settings = await ctx.runQuery(internal.settings.getForRun, {});
     const { job, prompt, productImages, styleRef } = bundle;
     try {
       // Template style example: upload to FAL once, cache on the template.
@@ -134,17 +136,24 @@ export const processQueue = internalAction({
             : productUrls.length > 0
               ? PRODUCT_ONLY_SUFFIX
               : "";
-      const endpoint = useEdit
-        ? "openai/gpt-image-2/edit"
-        : "openai/gpt-image-2";
+      // Admin-configurable FAL endpoint; references go to its /edit
+      // variant. Params adapt per model family: quality is a gpt-image
+      // concept, aspect_ratio is what Gemini-style models expect.
+      const model = settings.imageModel;
+      const isGptImage = model.startsWith("openai/gpt-image");
+      const endpoint = useEdit ? `${model}/edit` : model;
       const size = mapAspect(prompt.aspectRatio);
       const input: Record<string, unknown> = {
         prompt: prompt.prompt + suffix,
         image_size: size,
-        quality: job.quality,
         num_images: 1,
         output_format: "png",
       };
+      if (isGptImage) {
+        input.quality = job.quality;
+      } else {
+        input.aspect_ratio = prompt.aspectRatio;
+      }
       if (useEdit) input.image_urls = imageUrls;
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

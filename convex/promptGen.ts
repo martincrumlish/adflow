@@ -6,9 +6,6 @@ import { action } from "./_generated/server";
 import { promptGenerationPrompt } from "./lib/prompts";
 import { jobQuality } from "./schema";
 
-const OPENROUTER_MODEL =
-  process.env.OPENROUTER_MODEL ?? "anthropic/claude-sonnet-5";
-
 const VALID_ASPECTS = ["1:1", "4:5", "9:16"] as const;
 type Aspect = (typeof VALID_ASPECTS)[number];
 
@@ -62,6 +59,7 @@ export const run = action({
     if (bundle.templates.length === 0) {
       throw new ConvexError("Select at least one template first.");
     }
+    const settings = await ctx.runQuery(internal.settings.getForRun, {});
     await ctx.runMutation(internal.prompts.setPrompting, {
       projectId: args.projectId,
     });
@@ -75,7 +73,7 @@ export const run = action({
         },
       });
       const response = await client.chat.completions.create({
-        model: OPENROUTER_MODEL,
+        model: settings.textModel,
         max_tokens: 16000,
         messages: [
           {

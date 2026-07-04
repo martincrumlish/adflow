@@ -5,9 +5,6 @@ import { internal } from "./_generated/api";
 import { action } from "./_generated/server";
 import { brandResearchPrompt, extractPromptModifier } from "./lib/prompts";
 
-const OPENROUTER_MODEL =
-  process.env.OPENROUTER_MODEL ?? "anthropic/claude-sonnet-5";
-
 /**
  * Phase 1: brand research via OpenRouter with its server-side
  * web-search tool. Produces the Brand DNA document + prompt modifier.
@@ -25,6 +22,7 @@ export const run = action({
     if (project.status === "generating") {
       throw new ConvexError("Wait for image generation to finish first.");
     }
+    const settings = await ctx.runQuery(internal.settings.getForRun, {});
     await ctx.runMutation(internal.brandDna.setResearching, {
       projectId: args.projectId,
     });
@@ -38,7 +36,7 @@ export const run = action({
         },
       });
       const response = await client.chat.completions.create({
-        model: OPENROUTER_MODEL,
+        model: settings.textModel,
         max_tokens: 8000,
         tools: [
           {

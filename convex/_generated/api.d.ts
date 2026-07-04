@@ -23,6 +23,7 @@ import type * as projects from "../projects.js";
 import type * as promptGen from "../promptGen.js";
 import type * as prompts from "../prompts.js";
 import type * as research from "../research.js";
+import type * as settings from "../settings.js";
 import type * as signupLinks from "../signupLinks.js";
 import type * as templates from "../templates.js";
 import type * as users from "../users.js";
@@ -49,6 +50,7 @@ declare const fullApi: ApiFromModules<{
   promptGen: typeof promptGen;
   prompts: typeof prompts;
   research: typeof research;
+  settings: typeof settings;
   signupLinks: typeof signupLinks;
   templates: typeof templates;
   users: typeof users;

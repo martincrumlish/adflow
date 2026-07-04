@@ -46,6 +46,14 @@ export default defineSchema({
     active: v.boolean(),
   }),
 
+  // Singleton row of admin-configurable app settings.
+  appSettings: defineTable({
+    // OpenRouter slug for the LLM phases (research + copywriting).
+    textModel: v.optional(v.string()),
+    // FAL endpoint id for image generation (edit variant is derived).
+    imageModel: v.optional(v.string()),
+  }),
+
   signupLinks: defineTable({
     token: v.string(),
     planId: v.id("plans"),

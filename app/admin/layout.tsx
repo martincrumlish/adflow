@@ -8,6 +8,7 @@ import {
   LayoutTemplate,
   Link2,
   LogOut,
+  Settings,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -45,6 +46,12 @@ const SECTIONS = [
     label: "System templates",
     icon: LayoutTemplate,
     description: "The shared ad-format library every user sees.",
+  },
+  {
+    href: "/admin/settings",
+    label: "Settings",
+    icon: Settings,
+    description: "The AI models behind research, copywriting, and rendering.",
   },
 ];
 
