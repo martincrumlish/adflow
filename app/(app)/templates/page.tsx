@@ -117,9 +117,20 @@ export default function TemplatesPage() {
                     )}
                   </div>
                 </div>
-                <p className="mb-3 line-clamp-3 text-xs leading-relaxed text-muted-foreground">
-                  {template.body}
-                </p>
+                <div className="mb-3 flex items-start gap-3">
+                  <p className="line-clamp-3 flex-1 text-xs leading-relaxed text-muted-foreground">
+                    {template.body}
+                  </p>
+                  {template.exampleImageUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={template.exampleImageUrl}
+                      alt="Style reference"
+                      title="Style reference"
+                      className="size-14 shrink-0 rounded-md border border-border object-cover"
+                    />
+                  )}
+                </div>
                 <div className="flex items-center gap-1.5">
                   <Badge
                     variant="outline"

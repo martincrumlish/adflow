@@ -17,15 +17,28 @@ function mapAspect(aspect: string): { width: number; height: number } {
 }
 
 /**
- * Appended to prompts that carry product reference images. Without it
- * the model treats references as loose inspiration and invents its own
- * version of the product (especially for UI screenshots).
+ * Suffixes that tell the model what each attached reference image is
+ * for. Without them it treats references as loose inspiration and
+ * invents its own version of the product (especially UI screenshots).
+ * When a style example is attached it is always FIRST in image_urls.
  */
-const REFERENCE_FIDELITY_SUFFIX =
+const PRODUCT_ONLY_SUFFIX =
   " The attached reference images show the real product. Depict this exact" +
   " product faithfully — same design, branding, colors, and interface or" +
   " packaging details as the references. Do not invent a different version" +
   " of the product.";
+
+const STYLE_ONLY_SUFFIX =
+  " The attached reference image is a LAYOUT EXAMPLE only. Imitate its" +
+  " composition, arrangement, and ad format, but use the brand, colors, and" +
+  " text described in this prompt — never the example's brand or copy.";
+
+const STYLE_AND_PRODUCT_SUFFIX =
+  " The FIRST attached reference image is a LAYOUT EXAMPLE only: imitate its" +
+  " composition, arrangement, and ad format, but never its brand or copy." +
+  " The remaining reference images show the real product: depict that exact" +
+  " product faithfully — same design, branding, colors, and packaging or" +
+  " interface details. Do not invent a different version of the product.";
 
 function falErrorMessage(error: unknown): string {
   if (error && typeof error === "object") {
@@ -62,15 +75,35 @@ export const processQueue = internalAction({
     if (!bundle) return null; // Queue drained or another worker is on it.
 
     fal.config({ credentials: process.env.FAL_KEY });
-    const { job, prompt, productImages } = bundle;
+    const { job, prompt, productImages, styleRef } = bundle;
     try {
+      // Template style example: upload to FAL once, cache on the template.
+      let styleUrl: string | null = null;
+      if (styleRef) {
+        if (styleRef.falUrl) {
+          styleUrl = styleRef.falUrl;
+        } else {
+          const blob = await ctx.storage.get(styleRef.storageId);
+          if (blob) {
+            const file = new File([blob], "style-example.png", {
+              type: blob.type || "image/png",
+            });
+            styleUrl = await fal.storage.upload(file);
+            await ctx.runMutation(internal.templates.setExampleFalUrl, {
+              templateId: styleRef.templateId,
+              falUrl: styleUrl,
+            });
+          }
+        }
+      }
+
       // Product references: upload each stored image to FAL once and
       // cache the URL on the row.
-      const imageUrls: string[] = [];
+      const productUrls: string[] = [];
       if (prompt.needsProductImages) {
         for (const productImage of productImages) {
           if (productImage.falUrl) {
-            imageUrls.push(productImage.falUrl);
+            productUrls.push(productImage.falUrl);
             continue;
           }
           const blob = await ctx.storage.get(productImage.storageId);
@@ -85,19 +118,28 @@ export const processQueue = internalAction({
             imageId: productImage._id,
             falUrl,
           });
-          imageUrls.push(falUrl);
+          productUrls.push(falUrl);
         }
       }
 
-      const useEdit = prompt.needsProductImages && imageUrls.length > 0;
+      // Style example first, then product photos — the suffixes below
+      // reference this ordering.
+      const imageUrls = [...(styleUrl ? [styleUrl] : []), ...productUrls];
+      const useEdit = imageUrls.length > 0;
+      const suffix =
+        styleUrl && productUrls.length > 0
+          ? STYLE_AND_PRODUCT_SUFFIX
+          : styleUrl
+            ? STYLE_ONLY_SUFFIX
+            : productUrls.length > 0
+              ? PRODUCT_ONLY_SUFFIX
+              : "";
       const endpoint = useEdit
         ? "openai/gpt-image-2/edit"
         : "openai/gpt-image-2";
       const size = mapAspect(prompt.aspectRatio);
       const input: Record<string, unknown> = {
-        prompt: useEdit
-          ? prompt.prompt + REFERENCE_FIDELITY_SUFFIX
-          : prompt.prompt,
+        prompt: prompt.prompt + suffix,
         image_size: size,
         quality: job.quality,
         num_images: 1,

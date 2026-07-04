@@ -1,8 +1,8 @@
 "use client";
 
 import { useMutation } from "convex/react";
-import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ImagePlus, Loader2, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -34,7 +34,10 @@ export type EditableTemplate = {
   aspectRatio: "1:1" | "4:5" | "9:16";
   needsProductImages: boolean;
   category?: string;
+  exampleImageUrl?: string | null;
 };
+
+const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp"];
 
 /**
  * Create (template === null) or edit (template set) a template.
@@ -54,6 +57,7 @@ export function TemplateEditorDialog({
 }) {
   const createTemplate = useMutation(api.templates.create);
   const updateTemplate = useMutation(api.templates.update);
+  const generateUploadUrl = useMutation(api.templates.generateUploadUrl);
   const [pending, setPending] = useState(false);
 
   const [name, setName] = useState("");
@@ -62,6 +66,22 @@ export function TemplateEditorDialog({
   const [needsProduct, setNeedsProduct] = useState(false);
   const [category, setCategory] = useState("");
 
+  // Style reference image: a freshly uploaded storage id, an explicit
+  // removal, or untouched (undefined on submit).
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [newExampleId, setNewExampleId] = useState<Id<"_storage"> | null>(
+    null,
+  );
+  const [newExamplePreview, setNewExamplePreview] = useState<string | null>(
+    null,
+  );
+  const [removeExample, setRemoveExample] = useState(false);
+
+  const examplePreview = removeExample
+    ? null
+    : (newExamplePreview ?? template?.exampleImageUrl ?? null);
+
   useEffect(() => {
     if (open) {
       setName(template?.name ?? "");
@@ -69,8 +89,41 @@ export function TemplateEditorDialog({
       setAspect(template?.aspectRatio ?? "1:1");
       setNeedsProduct(template?.needsProductImages ?? false);
       setCategory(template?.category ?? "");
+      setNewExampleId(null);
+      setNewExamplePreview(null);
+      setRemoveExample(false);
     }
   }, [open, template]);
+
+  async function onExampleSelected(files: FileList | null) {
+    const file = files?.[0];
+    if (!file) return;
+    if (!ACCEPTED_TYPES.includes(file.type)) {
+      toast.error("Only PNG, JPG, or WebP images.");
+      return;
+    }
+    setUploading(true);
+    try {
+      const uploadUrl = await generateUploadUrl();
+      const response = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      if (!response.ok) throw new Error(`Upload failed (${response.status})`);
+      const { storageId } = (await response.json()) as {
+        storageId: Id<"_storage">;
+      };
+      setNewExampleId(storageId);
+      setNewExamplePreview(URL.createObjectURL(file));
+      setRemoveExample(false);
+    } catch (error) {
+      toast.error(errorMessage(error, "Upload failed."));
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -84,6 +137,8 @@ export function TemplateEditorDialog({
           aspectRatio: aspect,
           needsProductImages: needsProduct,
           category,
+          exampleImageId:
+            newExampleId ?? (removeExample ? null : undefined),
         });
         toast.success("Template saved.");
       } else {
@@ -93,6 +148,7 @@ export function TemplateEditorDialog({
           aspectRatio: aspect,
           needsProductImages: needsProduct,
           category: category || undefined,
+          exampleImageId: newExampleId ?? undefined,
           system: mode === "system" ? true : undefined,
         });
         toast.success(
@@ -156,6 +212,62 @@ export function TemplateEditorDialog({
               className="min-h-36 text-xs leading-relaxed"
               required
             />
+          </div>
+          <div className="space-y-2">
+            <Label>Style reference (optional)</Label>
+            <p className="text-xs text-muted-foreground">
+              An example render of this layout, shown to the image model as a
+              composition guide — brand and copy still come from the prompt.
+            </p>
+            <div className="flex items-center gap-3">
+              {examplePreview ? (
+                <div className="group relative h-20 w-20 overflow-hidden rounded-lg border border-border bg-muted">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={examplePreview}
+                    alt="Style reference"
+                    className="size-full object-cover"
+                  />
+                  <button
+                    type="button"
+                    title="Remove style reference"
+                    onClick={() => {
+                      setNewExampleId(null);
+                      setNewExamplePreview(null);
+                      setRemoveExample(true);
+                    }}
+                    className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full bg-black/70 text-white opacity-0 transition-opacity hover:bg-black group-hover:opacity-100"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  disabled={uploading}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border text-muted-foreground transition-colors hover:border-ring/50 hover:text-foreground disabled:opacity-50"
+                >
+                  {uploading ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <ImagePlus className="size-4" />
+                  )}
+                  <span className="text-[10px]">
+                    {uploading ? "Uploading…" : "Add image"}
+                  </span>
+                </button>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ACCEPTED_TYPES.join(",")}
+                hidden
+                onChange={(event) =>
+                  void onExampleSelected(event.target.files)
+                }
+              />
+            </div>
           </div>
           <div className="flex items-center gap-6">
             <div className="space-y-2">

@@ -88,6 +88,10 @@ export default defineSchema({
     category: v.optional(v.string()),
     // undefined => shared system template; set => private custom template.
     userId: v.optional(v.id("users")),
+    // Optional layout/style example image shown to the image model.
+    exampleImageId: v.optional(v.id("_storage")),
+    // FAL storage URL, cached after first upload.
+    exampleFalUrl: v.optional(v.string()),
   }).index("by_user", ["userId"]),
 
   prompts: defineTable({
@@ -98,6 +102,8 @@ export default defineSchema({
     aspectRatio,
     needsProductImages: v.boolean(),
     notes: v.optional(v.string()),
+    // Source template, so generation can pick up its style example.
+    templateId: v.optional(v.id("templates")),
   }).index("by_project", ["projectId"]),
 
   jobs: defineTable({

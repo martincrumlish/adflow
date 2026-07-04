@@ -13,6 +13,7 @@ const promptDoc = v.object({
   aspectRatio,
   needsProductImages: v.boolean(),
   notes: v.optional(v.string()),
+  templateId: v.optional(v.id("templates")),
 });
 
 export const listForProject = query({
@@ -96,6 +97,7 @@ export const replaceAll = internalMutation({
         aspectRatio,
         needsProductImages: v.boolean(),
         notes: v.optional(v.string()),
+        templateId: v.optional(v.id("templates")),
       }),
     ),
   },

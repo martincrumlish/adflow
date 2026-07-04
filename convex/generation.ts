@@ -208,6 +208,15 @@ const claimedBundle = v.union(
         falUrl: v.optional(v.string()),
       }),
     ),
+    // The source template's layout/style example, when it has one.
+    styleRef: v.union(
+      v.null(),
+      v.object({
+        templateId: v.id("templates"),
+        storageId: v.id("_storage"),
+        falUrl: v.optional(v.string()),
+      }),
+    ),
   }),
 );
 
@@ -268,6 +277,9 @@ export const claimNext = internalMutation({
           .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
           .collect()
       : [];
+    const template = prompt.templateId
+      ? await ctx.db.get(prompt.templateId)
+      : null;
     return {
       job: { _id: next._id, quality: next.quality },
       prompt: {
@@ -283,6 +295,14 @@ export const claimNext = internalMutation({
         filename: image.filename,
         falUrl: image.falUrl,
       })),
+      styleRef:
+        template?.exampleImageId != null
+          ? {
+              templateId: template._id,
+              storageId: template.exampleImageId,
+              falUrl: template.exampleFalUrl,
+            }
+          : null,
     };
   },
 });
@@ -355,6 +375,7 @@ export const getPromptGenInputs = internalQuery({
     ),
     templates: v.array(
       v.object({
+        _id: v.id("templates"),
         number: v.number(),
         name: v.string(),
         body: v.string(),
@@ -377,6 +398,7 @@ export const getPromptGenInputs = internalQuery({
       if (template.userId !== undefined && template.userId !== project.userId)
         continue;
       templates.push({
+        _id: template._id,
         number: template.number,
         name: template.name,
         body: template.body,

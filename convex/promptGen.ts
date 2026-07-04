@@ -115,6 +115,7 @@ export const run = action({
             typeof p.notes === "string" && p.notes.trim()
               ? p.notes.trim()
               : undefined,
+          templateId: template?._id,
         };
       });
       await ctx.runMutation(internal.prompts.replaceAll, {

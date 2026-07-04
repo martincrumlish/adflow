@@ -60,6 +60,8 @@ export default function GeneratePage() {
 
   const [quality, setQuality] = useState<Quality>("high");
   const [subset, setSubset] = useState<Set<Id<"prompts">> | null>(null);
+  // Ref mirror so rapid toggles never compute from stale state.
+  const subsetRef = useRef<Set<Id<"prompts">> | null>(null);
   const [starting, setStarting] = useState(false);
 
   const generating = project?.status === "generating";
@@ -115,10 +117,11 @@ export default function GeneratePage() {
 
   function togglePrompt(promptId: Id<"prompts">) {
     if (!prompts) return;
-    const current =
-      subset === null ? new Set(prompts.map((p) => p._id)) : new Set(subset);
+    const base = subsetRef.current ?? new Set(prompts.map((p) => p._id));
+    const current = new Set(base);
     if (current.has(promptId)) current.delete(promptId);
     else current.add(promptId);
+    subsetRef.current = current;
     setSubset(current);
   }
 

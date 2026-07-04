@@ -13,7 +13,10 @@ const templateDoc = v.object({
   needsProductImages: v.boolean(),
   category: v.optional(v.string()),
   userId: v.optional(v.id("users")),
+  exampleImageId: v.optional(v.id("_storage")),
+  exampleFalUrl: v.optional(v.string()),
   isSystem: v.boolean(),
+  exampleImageUrl: v.union(v.string(), v.null()),
 });
 
 /** System templates + the signed-in user's custom templates. */
@@ -31,9 +34,26 @@ export const list = query({
       .query("templates")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .collect();
-    return [...system, ...custom]
-      .sort((a, b) => a.number - b.number)
-      .map((t) => ({ ...t, isSystem: t.userId === undefined }));
+    return await Promise.all(
+      [...system, ...custom]
+        .sort((a, b) => a.number - b.number)
+        .map(async (t) => ({
+          ...t,
+          isSystem: t.userId === undefined,
+          exampleImageUrl: t.exampleImageId
+            ? await ctx.storage.getUrl(t.exampleImageId)
+            : null,
+        })),
+    );
+  },
+});
+
+export const generateUploadUrl = mutation({
+  args: {},
+  returns: v.string(),
+  handler: async (ctx) => {
+    await requireUser(ctx);
+    return await ctx.storage.generateUploadUrl();
   },
 });
 
@@ -44,6 +64,7 @@ export const create = mutation({
     aspectRatio,
     needsProductImages: v.boolean(),
     category: v.optional(v.string()),
+    exampleImageId: v.optional(v.id("_storage")),
     // Admins may add to the shared system library (e.g. when curating
     // formats discovered outside the app).
     system: v.optional(v.boolean()),
@@ -69,6 +90,7 @@ export const create = mutation({
       needsProductImages: args.needsProductImages,
       category: args.category?.trim() || undefined,
       userId: args.system ? undefined : user._id,
+      exampleImageId: args.exampleImageId,
     });
   },
 });
@@ -81,6 +103,8 @@ export const update = mutation({
     aspectRatio: v.optional(aspectRatio),
     needsProductImages: v.optional(v.boolean()),
     category: v.optional(v.string()),
+    // Set to replace, null to remove, omit to leave untouched.
+    exampleImageId: v.optional(v.union(v.id("_storage"), v.null())),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -95,6 +119,13 @@ export const update = mutation({
         "System templates can't be edited. Duplicate it to make your own version.",
       );
     }
+    if (
+      args.exampleImageId !== undefined &&
+      template.exampleImageId &&
+      template.exampleImageId !== args.exampleImageId
+    ) {
+      await ctx.storage.delete(template.exampleImageId);
+    }
     await ctx.db.patch(args.templateId, {
       ...(args.name !== undefined ? { name: args.name.trim() } : {}),
       ...(args.body !== undefined ? { body: args.body.trim() } : {}),
@@ -106,6 +137,12 @@ export const update = mutation({
         : {}),
       ...(args.category !== undefined
         ? { category: args.category.trim() || undefined }
+        : {}),
+      ...(args.exampleImageId !== undefined
+        ? {
+            exampleImageId: args.exampleImageId ?? undefined,
+            exampleFalUrl: undefined,
+          }
         : {}),
     });
     return null;
@@ -126,6 +163,8 @@ export const duplicate = mutation({
     }
     const all = await ctx.db.query("templates").collect();
     const nextNumber = Math.max(0, ...all.map((t) => t.number)) + 1;
+    // The style example is intentionally not copied: storage files are
+    // deleted with their owning template, so sharing one would dangle.
     return await ctx.db.insert("templates", {
       number: nextNumber,
       name: `${template.name}-copy`,
@@ -149,7 +188,23 @@ export const remove = mutation({
       template.userId === user._id ||
       (template.userId === undefined && isAdminUser(user));
     if (!canDelete) throw new ConvexError("You can't delete this template.");
+    if (template.exampleImageId) {
+      await ctx.storage.delete(template.exampleImageId);
+    }
     await ctx.db.delete(args.templateId);
+    return null;
+  },
+});
+
+/** Cache the FAL URL so each style example uploads to FAL once. */
+export const setExampleFalUrl = internalMutation({
+  args: { templateId: v.id("templates"), falUrl: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const template = await ctx.db.get(args.templateId);
+    if (template) {
+      await ctx.db.patch(args.templateId, { exampleFalUrl: args.falUrl });
+    }
     return null;
   },
 });
