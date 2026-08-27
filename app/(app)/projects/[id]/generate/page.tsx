@@ -59,6 +59,7 @@ export default function GeneratePage() {
   const regenerateOne = useMutation(api.generation.regenerateOne);
 
   const [quality, setQuality] = useState<Quality>("high");
+  const [variations, setVariations] = useState(1);
   const [subset, setSubset] = useState<Set<Id<"prompts">> | null>(null);
   // Ref mirror so rapid toggles never compute from stale state.
   const subsetRef = useRef<Set<Id<"prompts">> | null>(null);
@@ -105,6 +106,7 @@ export default function GeneratePage() {
       await start({
         projectId,
         quality,
+        variations,
         promptIds:
           subset === null ? undefined : (selectedPromptIds as Id<"prompts">[]),
       });
@@ -192,6 +194,25 @@ export default function GeneratePage() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">
+                Variations
+              </p>
+              <Select
+                value={String(variations)}
+                onValueChange={(value) => setVariations(Number(value))}
+                disabled={generating}
+              >
+                <SelectTrigger size="sm" className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1 per ad</SelectItem>
+                  <SelectItem value="2">2 per ad</SelectItem>
+                  <SelectItem value="3">3 per ad</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <Button
               onClick={onStart}
               disabled={
@@ -206,7 +227,7 @@ export default function GeneratePage() {
               )}
               {generating
                 ? "Generating…"
-                : `Generate ${selectedPromptIds.length} image${selectedPromptIds.length === 1 ? "" : "s"}`}
+                : `Generate ${selectedPromptIds.length * variations} image${selectedPromptIds.length * variations === 1 ? "" : "s"}`}
             </Button>
           </div>
 

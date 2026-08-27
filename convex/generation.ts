@@ -68,12 +68,19 @@ export const jobsForProject = query({
   },
 });
 
+/** How many alternative renders a run may produce per ad. */
+function clampVariations(variations: number | undefined): number {
+  if (variations === undefined || !Number.isFinite(variations)) return 1;
+  return Math.max(1, Math.min(3, Math.floor(variations)));
+}
+
 /** Shared kickoff used by the public mutation and the Phase 2 chain. */
 async function beginRun(
   ctx: MutationCtx,
   projectId: Id<"projects">,
   quality: "low" | "medium" | "high",
   promptIds?: Id<"prompts">[],
+  variations?: number,
 ) {
   const project = await ctx.db.get(projectId);
   if (!project) throw new ConvexError("Project not found");
@@ -97,22 +104,26 @@ async function beginRun(
     .withIndex("by_project", (q) => q.eq("projectId", projectId))
     .collect();
   for (const job of oldJobs) await ctx.db.delete(job._id);
+  const perPrompt = clampVariations(variations);
   for (const prompt of wanted.sort(
     (a, b) => a.templateNumber - b.templateNumber,
   )) {
-    await ctx.db.insert("jobs", {
-      projectId,
-      promptId: prompt._id,
-      status: "queued",
-      quality,
-    });
+    for (let i = 0; i < perPrompt; i++) {
+      await ctx.db.insert("jobs", {
+        projectId,
+        promptId: prompt._id,
+        status: "queued",
+        quality,
+        replaces: "previous-runs",
+      });
+    }
   }
   if (project.status !== "generating") {
     await ctx.db.patch(projectId, { status: "generating" });
   }
   // Spin up a bounded worker pool; each worker claims one job at a
   // time and reschedules itself until the queue drains.
-  const workers = Math.min(concurrencyCap(), wanted.length);
+  const workers = Math.min(concurrencyCap(), wanted.length * perPrompt);
   for (let i = 0; i < workers; i++) {
     await ctx.scheduler.runAfter(
       i * 250,
@@ -127,21 +138,32 @@ export const start = mutation({
     projectId: v.id("projects"),
     quality: jobQuality,
     promptIds: v.optional(v.array(v.id("prompts"))),
+    variations: v.optional(v.number()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     await requireProject(ctx, args.projectId);
-    await beginRun(ctx, args.projectId, args.quality, args.promptIds);
+    await beginRun(
+      ctx,
+      args.projectId,
+      args.quality,
+      args.promptIds,
+      args.variations,
+    );
     return null;
   },
 });
 
 /** Called by Phase 2 when the user chose the one-click flow. */
 export const startAuto = internalMutation({
-  args: { projectId: v.id("projects"), quality: jobQuality },
+  args: {
+    projectId: v.id("projects"),
+    quality: jobQuality,
+    variations: v.optional(v.number()),
+  },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await beginRun(ctx, args.projectId, args.quality);
+    await beginRun(ctx, args.projectId, args.quality, undefined, args.variations);
     return null;
   },
 });
@@ -150,6 +172,8 @@ export const regenerateOne = mutation({
   args: {
     promptId: v.id("prompts"),
     quality: v.optional(jobQuality),
+    // When set, the finished render replaces exactly this image.
+    imageId: v.optional(v.id("images")),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -169,6 +193,7 @@ export const regenerateOne = mutation({
     await ctx.db.insert("jobs", {
       projectId: prompt.projectId,
       promptId: args.promptId,
+      replaces: args.imageId,
       status: "queued",
       quality: args.quality ?? "high",
     });
@@ -346,14 +371,30 @@ export const completeJob = internalMutation({
       error: undefined,
     });
     const prompt = await ctx.db.get(job.promptId);
-    // One image per prompt in v1: replace any previous render.
-    const previous = await ctx.db
-      .query("images")
-      .withIndex("by_prompt", (q) => q.eq("promptId", job.promptId))
-      .collect();
-    for (const image of previous) {
-      await ctx.storage.delete(image.storageId);
-      await ctx.db.delete(image._id);
+    if (job.replaces === "previous-runs") {
+      // A new run replaces the previous run's renders for this ad, but
+      // keeps sibling variations from the same run (their jobs were
+      // created together, so they are never older than this job).
+      // Matched by format name, not promptId: Phase 2 re-runs replace
+      // the prompt rows, so promptIds don't survive across runs.
+      const templateName = prompt?.templateName ?? "template";
+      const previous = await ctx.db
+        .query("images")
+        .withIndex("by_project", (q) => q.eq("projectId", job.projectId))
+        .collect();
+      for (const image of previous) {
+        if (image.templateName !== templateName) continue;
+        if (image._creationTime >= job._creationTime) continue;
+        await ctx.storage.delete(image.storageId);
+        await ctx.db.delete(image._id);
+      }
+    } else if (job.replaces) {
+      // Regenerate-one: swap out exactly the image it was clicked on.
+      const target = await ctx.db.get(job.replaces);
+      if (target && target.promptId === job.promptId) {
+        await ctx.storage.delete(target.storageId);
+        await ctx.db.delete(target._id);
+      }
     }
     await ctx.db.insert("images", {
       projectId: job.projectId,

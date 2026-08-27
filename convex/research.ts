@@ -4,6 +4,7 @@ import OpenAI from "openai";
 import { internal } from "./_generated/api";
 import { action } from "./_generated/server";
 import { brandResearchPrompt, extractPromptModifier } from "./lib/prompts";
+import { decryptSecret } from "./lib/secretbox";
 
 /**
  * Models sometimes narrate before the document despite instructions;
@@ -40,12 +41,17 @@ export const run = action({
       throw new ConvexError("Wait for image generation to finish first.");
     }
     const settings = await ctx.runQuery(internal.settings.getForRun, {});
+    const byok = await ctx.runQuery(internal.apiKeys.ciphertextsForProject, {
+      projectId: args.projectId,
+    });
     await ctx.runMutation(internal.brandDna.setResearching, {
       projectId: args.projectId,
     });
     try {
       const client = new OpenAI({
-        apiKey: process.env.OPENROUTER_API_KEY,
+        apiKey: byok.openrouter
+          ? await decryptSecret(byok.openrouter)
+          : process.env.OPENROUTER_API_KEY,
         baseURL: "https://openrouter.ai/api/v1",
         defaultHeaders: {
           "HTTP-Referer": process.env.SITE_URL ?? "http://localhost:3000",

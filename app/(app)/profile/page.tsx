@@ -19,8 +19,94 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/errors";
 
+function ApiKeyRow({
+  provider,
+  label,
+  hint,
+  last4,
+}: {
+  provider: "openrouter" | "fal";
+  label: string;
+  hint: string;
+  last4: string | null;
+}) {
+  const saveKey = useAction(api.apiKeys.save);
+  const removeKey = useMutation(api.apiKeys.remove);
+  const [value, setValue] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function onSave() {
+    setBusy(true);
+    try {
+      await saveKey({ provider, key: value });
+      setValue("");
+      toast.success(`${label} key saved.`);
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onRemove() {
+    setBusy(true);
+    try {
+      await removeKey({ provider });
+      toast.success(`${label} key removed.`);
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      <p className="text-xs text-muted-foreground">{hint}</p>
+      {last4 ? (
+        <div className="flex items-center gap-2">
+          <code className="rounded-md border border-border bg-muted px-2.5 py-1.5 font-mono text-xs">
+            ••••••••{last4}
+          </code>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-muted-foreground hover:text-red-400"
+            onClick={onRemove}
+            disabled={busy}
+          >
+            Remove
+          </Button>
+        </div>
+      ) : (
+        <div className="flex max-w-md items-center gap-2">
+          <Input
+            type="password"
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            placeholder={`Paste your ${label} key`}
+            autoComplete="off"
+            className="font-mono text-xs"
+          />
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={onSave}
+            disabled={busy || value.trim().length === 0}
+          >
+            {busy && <Loader2 className="size-4 animate-spin" />}
+            Save
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ProfilePage() {
   const viewer = useQuery(api.users.viewer);
+  const keyStatus = useQuery(api.apiKeys.status);
   const updateName = useMutation(api.users.updateName);
   const changePassword = useAction(api.users.changePassword);
 
@@ -186,6 +272,31 @@ export default function ProfilePage() {
                 Update password
               </Button>
             </form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>API keys</CardTitle>
+            <CardDescription>
+              Optional. When set, your research and image generation are
+              billed to your own accounts instead of AdFlow&apos;s. Keys are
+              stored encrypted and never shown again after saving.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <ApiKeyRow
+              provider="openrouter"
+              label="OpenRouter"
+              hint="Used for brand research and ad copywriting."
+              last4={keyStatus?.openrouter ?? null}
+            />
+            <ApiKeyRow
+              provider="fal"
+              label="FAL"
+              hint="Used for rendering the ad images."
+              last4={keyStatus?.fal ?? null}
+            />
           </CardContent>
         </Card>
       </div>

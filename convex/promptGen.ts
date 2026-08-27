@@ -4,6 +4,7 @@ import OpenAI from "openai";
 import { internal } from "./_generated/api";
 import { action } from "./_generated/server";
 import { promptGenerationPrompt } from "./lib/prompts";
+import { decryptSecret } from "./lib/secretbox";
 import { jobQuality } from "./schema";
 
 const VALID_ASPECTS = ["1:1", "4:5", "9:16"] as const;
@@ -38,6 +39,7 @@ export const run = action({
     projectId: v.id("projects"),
     autoStart: v.optional(v.boolean()),
     quality: v.optional(jobQuality),
+    variations: v.optional(v.number()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -60,12 +62,17 @@ export const run = action({
       throw new ConvexError("Select at least one template first.");
     }
     const settings = await ctx.runQuery(internal.settings.getForRun, {});
+    const byok = await ctx.runQuery(internal.apiKeys.ciphertextsForProject, {
+      projectId: args.projectId,
+    });
     await ctx.runMutation(internal.prompts.setPrompting, {
       projectId: args.projectId,
     });
     try {
       const client = new OpenAI({
-        apiKey: process.env.OPENROUTER_API_KEY,
+        apiKey: byok.openrouter
+          ? await decryptSecret(byok.openrouter)
+          : process.env.OPENROUTER_API_KEY,
         baseURL: "https://openrouter.ai/api/v1",
         defaultHeaders: {
           "HTTP-Referer": process.env.SITE_URL ?? "http://localhost:3000",
@@ -146,6 +153,7 @@ export const run = action({
       await ctx.runMutation(internal.generation.startAuto, {
         projectId: args.projectId,
         quality: args.quality ?? "high",
+        variations: args.variations,
       });
     }
     return null;

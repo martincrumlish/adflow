@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as apiKeys from "../apiKeys.js";
 import type * as auth from "../auth.js";
 import type * as brandDna from "../brandDna.js";
 import type * as exampleSeeder from "../exampleSeeder.js";
@@ -17,6 +18,7 @@ import type * as http from "../http.js";
 import type * as images from "../images.js";
 import type * as lib_access from "../lib/access.js";
 import type * as lib_prompts from "../lib/prompts.js";
+import type * as lib_secretbox from "../lib/secretbox.js";
 import type * as passwordReset from "../passwordReset.js";
 import type * as plans from "../plans.js";
 import type * as productImages from "../productImages.js";
@@ -36,6 +38,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  apiKeys: typeof apiKeys;
   auth: typeof auth;
   brandDna: typeof brandDna;
   exampleSeeder: typeof exampleSeeder;
@@ -45,6 +48,7 @@ declare const fullApi: ApiFromModules<{
   images: typeof images;
   "lib/access": typeof lib_access;
   "lib/prompts": typeof lib_prompts;
+  "lib/secretbox": typeof lib_secretbox;
   passwordReset: typeof passwordReset;
   plans: typeof plans;
   productImages: typeof productImages;

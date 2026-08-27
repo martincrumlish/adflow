@@ -46,6 +46,15 @@ export default defineSchema({
     active: v.boolean(),
   }),
 
+  // Bring-your-own API keys, AES-GCM encrypted with BYOK_ENCRYPTION_KEY.
+  // When present, that user's runs bill their accounts, not ours.
+  apiKeys: defineTable({
+    userId: v.id("users"),
+    provider: v.union(v.literal("openrouter"), v.literal("fal")),
+    ciphertext: v.string(),
+    last4: v.string(),
+  }).index("by_user_provider", ["userId", "provider"]),
+
   // Singleton row of admin-configurable app settings.
   appSettings: defineTable({
     // OpenRouter slug for the LLM phases (research + copywriting).
@@ -129,6 +138,12 @@ export default defineSchema({
     error: v.optional(v.string()),
     startedAt: v.optional(v.number()),
     finishedAt: v.optional(v.number()),
+    // What this job's finished image replaces: prior runs' images for
+    // the same ad (full runs), one specific image (regenerate-one), or
+    // nothing (retry — the image is added alongside).
+    replaces: v.optional(
+      v.union(v.literal("previous-runs"), v.id("images")),
+    ),
   })
     .index("by_project", ["projectId"])
     .index("by_project_status", ["projectId", "status"])

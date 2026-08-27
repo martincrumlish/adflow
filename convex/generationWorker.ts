@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import OpenAI from "openai";
 import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
+import { decryptSecret } from "./lib/secretbox";
 
 /** PRD §8 aspect-ratio -> image-size mapping. */
 function mapAspect(aspect: string): { width: number; height: number } {
@@ -75,8 +76,15 @@ export const processQueue = internalAction({
     });
     if (!bundle) return null; // Queue drained or another worker is on it.
 
-    fal.config({ credentials: process.env.FAL_KEY });
     const settings = await ctx.runQuery(internal.settings.getForRun, {});
+    const byok = await ctx.runQuery(internal.apiKeys.ciphertextsForProject, {
+      projectId: args.projectId,
+    });
+    fal.config({
+      credentials: byok.fal
+        ? await decryptSecret(byok.fal)
+        : process.env.FAL_KEY,
+    });
     const { job, prompt, productImages, styleRef } = bundle;
     try {
       // Template style example: upload to FAL once, cache on the template.

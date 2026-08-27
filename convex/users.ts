@@ -116,13 +116,16 @@ export const adminList = query({
       planId: v.union(v.id("plans"), v.null()),
       planName: v.union(v.string(), v.null()),
       createdAt: v.number(),
+      hasOwnKeys: v.boolean(),
     }),
   ),
   handler: async (ctx) => {
     if ((await currentAdmin(ctx)) === null) return [];
     const users = await ctx.db.query("users").collect();
     const plans = await ctx.db.query("plans").collect();
+    const apiKeys = await ctx.db.query("apiKeys").collect();
     const planName = new Map(plans.map((p) => [p._id, p.name]));
+    const keyOwners = new Set(apiKeys.map((k) => k.userId));
     return users.map((u) => ({
       _id: u._id,
       email: u.email ?? "(no email)",
@@ -131,6 +134,7 @@ export const adminList = query({
       planId: u.planId ?? null,
       planName: u.planId ? (planName.get(u.planId) ?? null) : null,
       createdAt: u._creationTime,
+      hasOwnKeys: keyOwners.has(u._id),
     }));
   },
 });

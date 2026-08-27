@@ -51,6 +51,7 @@ export default function FormatsPage() {
     null,
   );
   const [quality, setQuality] = useState<"low" | "medium" | "high">("high");
+  const [variations, setVariations] = useState(1);
 
   // Local-first selection (state + ref) so rapid toggles don't race
   // each other or the server round-trip.
@@ -78,8 +79,9 @@ export default function FormatsPage() {
 
   /** Everything after this click happens behind the scenes. */
   function generateAds() {
-    generate({ projectId, autoStart: true, quality }).catch((error) =>
-      toast.error(errorMessage(error, "Could not prepare the ads.")),
+    generate({ projectId, autoStart: true, quality, variations }).catch(
+      (error) =>
+        toast.error(errorMessage(error, "Could not prepare the ads.")),
     );
     router.push(`/projects/${projectId}/generate`);
   }
@@ -272,6 +274,20 @@ export default function FormatsPage() {
             <SelectItem value="low">Low (draft)</SelectItem>
             <SelectItem value="medium">Medium</SelectItem>
             <SelectItem value="high">High</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select
+          value={String(variations)}
+          onValueChange={(value) => setVariations(Number(value))}
+          disabled={prompting || generating}
+        >
+          <SelectTrigger size="sm" className="w-32">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="1">1 per ad</SelectItem>
+            <SelectItem value="2">2 variations</SelectItem>
+            <SelectItem value="3">3 variations</SelectItem>
           </SelectContent>
         </Select>
         {!hasDna && (

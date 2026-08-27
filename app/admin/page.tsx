@@ -129,6 +129,15 @@ export default function AdminUsersPage() {
                       allowlist admin
                     </Badge>
                   )}
+                  {user.hasOwnKeys && (
+                    <Badge
+                      variant="outline"
+                      className="ml-2 h-4.5 px-1.5 text-[10px] text-muted-foreground"
+                      title="Generation billed to their own API keys"
+                    >
+                      own keys
+                    </Badge>
+                  )}
                 </TableCell>
                 <TableCell>
                   <Select
