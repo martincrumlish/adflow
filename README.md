@@ -23,19 +23,30 @@ images one by one in a background queue — you come back to a finished gallery.
 1. **Setup** — create a project (brand name, URL, product name), upload 1–3
    product photos.
 2. **Brand DNA** — a Convex action runs the research prompt through OpenRouter
-   with server-side web search and saves the document + an image-prompt
-   modifier. Both are editable.
-3. **Prompts** — select templates; a second action fills every template with
-   brand-specific copy (JSON-only output) and stores one editable prompt per
-   template.
-4. **Generate** — one job per prompt, drained by a bounded pool of
+   with server-side web search; rendered as structured sections with color
+   swatches, editable, with a distilled "Visual style" paragraph.
+3. **Formats** — pick ad formats from the library (image-forward cards with
+   example renders). One click on "Generate N ads" writes the copy behind
+   the scenes (Phase 2) and chains straight into image generation. Prompts
+   are deliberately never shown to users (admins see them in the gallery
+   lightbox). Quality (low/medium/high) and 1–3 variations per ad.
+4. **Generate** — one job per image, drained by a bounded pool of
    self-rescheduling Convex scheduler workers (default 4 concurrent FAL
    calls; tune with `GENERATION_CONCURRENCY`, clamped 1–8).
    Product-reference prompts call the FAL edit endpoint with the uploaded
-   photos; results are stored in Convex file storage. Live progress via
-   Convex reactivity (no polling).
-5. **Gallery** — grouped grid, lightbox, download, view prompt,
-   regenerate-one.
+   photos and the template's style example; results are stored in Convex
+   file storage. Live progress via Convex reactivity (no polling).
+5. **Gallery** — masonry grid, lightbox, per-image download / regenerate /
+   delete, and a Download-all ZIP ("a folder of finished ads").
+
+Admins configure the models in `/admin/settings` (OpenRouter text model +
+FAL image endpoint, both picked from live catalogs) and curate the shared
+format library in `/admin/templates` (names, descriptions, prompt bodies,
+and example/style-reference images — `npx convex run
+exampleSeeder:generateExamples` renders missing examples against a demo
+brand). Users may add their own OpenRouter/FAL keys on `/profile`; keys are
+AES-GCM encrypted at rest and, when present, that user's runs bill their
+accounts instead of the shared keys.
 
 ## Access model
 
@@ -76,6 +87,9 @@ Convex deployment env vars (server-side only — never exposed to the browser):
 | `ADMIN_EMAILS` | comma-separated admin allowlist |
 | `SITE_URL` | absolute app URL used in emails |
 | `JWT_PRIVATE_KEY` / `JWKS` | Convex Auth token signing |
+| `BYOK_ENCRYPTION_KEY` | 32-byte base64 key encrypting users' own API keys |
+| `GENERATION_CONCURRENCY` | optional; parallel FAL calls per project (1–8, default 4) |
+| `OPENROUTER_MODEL` | optional env fallback; admin Settings override it |
 
 Frontend (Vercel / `.env.local`):
 
