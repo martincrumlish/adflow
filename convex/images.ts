@@ -1,6 +1,6 @@
-import { v } from "convex/values";
-import { query } from "./_generated/server";
-import { ownedProject } from "./lib/access";
+import { ConvexError, v } from "convex/values";
+import { mutation, query } from "./_generated/server";
+import { ownedProject, requireProject } from "./lib/access";
 
 export const gallery = query({
   args: { projectId: v.id("projects") },
@@ -37,5 +37,19 @@ export const gallery = query({
         url: await ctx.storage.getUrl(image.storageId),
       })),
     );
+  },
+});
+
+/** Delete one generated image (e.g. culling variation losers). */
+export const remove = mutation({
+  args: { imageId: v.id("images") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const image = await ctx.db.get(args.imageId);
+    if (!image) throw new ConvexError("Image not found");
+    await requireProject(ctx, image.projectId);
+    await ctx.storage.delete(image.storageId);
+    await ctx.db.delete(args.imageId);
+    return null;
   },
 });

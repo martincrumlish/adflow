@@ -1,12 +1,15 @@
 "use client";
 
 import { useMutation, useQuery } from "convex/react";
+import JSZip from "jszip";
 import {
   Download,
   Eye,
+  FolderDown,
   ImageIcon,
   Loader2,
   RefreshCw,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -20,11 +23,21 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/errors";
+
+function slugify(text: string): string {
+  return (
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "ad"
+  );
+}
 
 type GalleryImage = {
   _id: Id<"images">;
@@ -62,8 +75,12 @@ export default function GalleryPage() {
   const jobs = useQuery(api.generation.jobsForProject, { projectId });
   const viewer = useQuery(api.users.viewer);
   const regenerateOne = useMutation(api.generation.regenerateOne);
+  const removeImage = useMutation(api.images.remove);
 
   const [lightbox, setLightbox] = useState<GalleryImage | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<GalleryImage | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [zipping, setZipping] = useState(false);
 
   const generating = project?.status === "generating";
   const remaining = useMemo(
@@ -75,9 +92,53 @@ export default function GalleryPage() {
   );
 
   function regenerate(image: GalleryImage) {
-    regenerateOne({ promptId: image.promptId })
+    regenerateOne({ promptId: image.promptId, imageId: image._id })
       .then(() => toast.success(`Regenerating “${image.templateName}”…`))
       .catch((error) => toast.error(errorMessage(error)));
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await removeImage({ imageId: deleteTarget._id });
+      toast.success("Image deleted.");
+      setDeleteTarget(null);
+      setLightbox(null);
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  /** The PRD promise, literally: a folder of finished ads. */
+  async function downloadAll() {
+    if (!images || images.length === 0 || !project) return;
+    setZipping(true);
+    try {
+      const zip = new JSZip();
+      const counts = new Map<string, number>();
+      for (const image of images) {
+        if (!image.url) continue;
+        const blob = await (await fetch(image.url)).blob();
+        const base = slugify(image.templateName);
+        const n = (counts.get(base) ?? 0) + 1;
+        counts.set(base, n);
+        zip.file(`${base}${n > 1 ? `-${n}` : ""}.png`, blob);
+      }
+      const bundle = await zip.generateAsync({ type: "blob" });
+      const objectUrl = URL.createObjectURL(bundle);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = `${slugify(project.name)}-ads.zip`;
+      anchor.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      toast.error("Could not build the ZIP.");
+    } finally {
+      setZipping(false);
+    }
   }
 
   if (project === undefined || images === undefined) {
@@ -115,7 +176,26 @@ export default function GalleryPage() {
           </Button>
         </div>
       ) : (
-        <div className="columns-2 gap-3 md:columns-3 xl:columns-4">
+        <>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              {images.length} finished ad{images.length === 1 ? "" : "s"}
+            </p>
+            <Button
+              size="sm"
+              className="gap-2"
+              onClick={() => void downloadAll()}
+              disabled={zipping || images.length === 0}
+            >
+              {zipping ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <FolderDown className="size-4" />
+              )}
+              {zipping ? "Zipping…" : "Download all"}
+            </Button>
+          </div>
+          <div className="columns-2 gap-3 md:columns-3 xl:columns-4">
           {images.map((image) => (
             <figure
               key={image._id}
@@ -164,6 +244,15 @@ export default function GalleryPage() {
                     >
                       <RefreshCw className="size-3.5" />
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Delete"
+                      className="size-7 text-white hover:bg-red-500/40 hover:text-white"
+                      onClick={() => setDeleteTarget(image)}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
                   </span>
                 </span>
               </div>
@@ -177,7 +266,8 @@ export default function GalleryPage() {
               </figcaption>
             </figure>
           ))}
-        </div>
+          </div>
+        </>
       )}
 
       <Dialog
@@ -240,9 +330,49 @@ export default function GalleryPage() {
                   <RefreshCw className="size-3.5" />
                   Regenerate
                 </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="gap-1.5 text-muted-foreground hover:text-red-400"
+                  onClick={() => setDeleteTarget(lightbox)}
+                >
+                  <Trash2 className="size-3.5" />
+                  Delete
+                </Button>
               </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete this image?</DialogTitle>
+            <DialogDescription>
+              “{deleteTarget?.templateName}” will be removed permanently.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setDeleteTarget(null)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={deleting}
+            >
+              {deleting && <Loader2 className="size-4 animate-spin" />}
+              Delete
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
