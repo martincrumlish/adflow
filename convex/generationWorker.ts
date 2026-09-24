@@ -18,29 +18,110 @@ function mapAspect(aspect: string): { width: number; height: number } {
   }
 }
 
+/** What is attached to a render, in `image_urls` order. */
+type ReferencePlan = {
+  // Spin-offs: the approved ad being adapted (takes the style slot).
+  source: { width: number; height: number; ratio: string } | null;
+  // The template's layout/style example (never for spin-offs).
+  style: boolean;
+  logo: boolean;
+  productCount: number;
+};
+
 /**
- * Suffixes that tell the model what each attached reference image is
- * for. Without them it treats references as loose inspiration and
- * invents its own version of the product (especially UI screenshots).
- * When a style example is attached it is always FIRST in image_urls.
+ * Tells the model what each attached reference image is for. Without
+ * this it treats references as loose inspiration and invents its own
+ * version of the product (especially UI screenshots) or logo. Images
+ * are always attached in this order: source ad or style example,
+ * logo, product photos; each one is described by its position.
+ *
+ * With no logo and no source ad this keeps the original, proven
+ * wording for the style-only / product-only / both cases.
  */
-const PRODUCT_ONLY_SUFFIX =
-  " The attached reference images show the real product. Depict this exact" +
-  " product faithfully — same design, branding, colors, and interface or" +
-  " packaging details as the references. Do not invent a different version" +
-  " of the product.";
+function referenceInstructions(plan: ReferencePlan): string {
+  const { source, style, logo, productCount } = plan;
+  if (!source && !logo) {
+    if (style && productCount > 0) {
+      return (
+        " The FIRST attached reference image is a LAYOUT EXAMPLE only: imitate" +
+        " its composition, arrangement, and ad format, but never its brand or" +
+        " copy. The remaining reference images show the real product: depict" +
+        " that exact product faithfully — same design, branding, colors, and" +
+        " packaging or interface details. Do not invent a different version" +
+        " of the product."
+      );
+    }
+    if (style) {
+      return (
+        " The attached reference image is a LAYOUT EXAMPLE only. Imitate its" +
+        " composition, arrangement, and ad format, but use the brand, colors," +
+        " and text described in this prompt — never the example's brand or" +
+        " copy."
+      );
+    }
+    if (productCount > 0) {
+      return (
+        " The attached reference images show the real product. Depict this" +
+        " exact product faithfully — same design, branding, colors, and" +
+        " interface or packaging details as the references. Do not invent a" +
+        " different version of the product."
+      );
+    }
+    return "";
+  }
 
-const STYLE_ONLY_SUFFIX =
-  " The attached reference image is a LAYOUT EXAMPLE only. Imitate its" +
-  " composition, arrangement, and ad format, but use the brand, colors, and" +
-  " text described in this prompt — never the example's brand or copy.";
+  const parts: string[] = [];
+  let position = 1;
+  if (source) {
+    parts.push(
+      `Reference image ${position} is the APPROVED AD to adapt. Recreate this` +
+        " exact ad, with the same headline and copy verbatim and the same" +
+        " product, colors, typography, and mood, recomposed for a" +
+        ` ${source.width}x${source.height} (${source.ratio}) canvas. Extend` +
+        " backgrounds naturally, keep all text fully inside the frame and" +
+        " legible, and do not add, drop, or reword any text.",
+    );
+    position++;
+  } else if (style) {
+    parts.push(
+      `Reference image ${position} is a LAYOUT EXAMPLE only: imitate its` +
+        " composition, arrangement, and ad format, but use the brand, colors," +
+        " and text described in this prompt — never the example's brand," +
+        " logo, or copy.",
+    );
+    position++;
+  }
+  if (logo) {
+    parts.push(
+      `Reference image ${position} is the brand's LOGO: reproduce it exactly,` +
+        " with its real shape, colors, and proportions, wherever the ad shows" +
+        " a logo; never redraw, restyle, or re-letter it, and do not add it" +
+        " where the ad has no place for a logo.",
+    );
+    position++;
+  }
+  if (productCount > 0) {
+    const which =
+      productCount === 1
+        ? `Reference image ${position} shows`
+        : `Reference images ${position}-${position + productCount - 1} show`;
+    parts.push(
+      `${which} the real product: depict this exact product faithfully — same` +
+        " design, branding, colors, and packaging or interface details. Do" +
+        " not invent a different version of the product.",
+    );
+  }
+  return " " + parts.join(" ");
+}
 
-const STYLE_AND_PRODUCT_SUFFIX =
-  " The FIRST attached reference image is a LAYOUT EXAMPLE only: imitate its" +
-  " composition, arrangement, and ad format, but never its brand or copy." +
-  " The remaining reference images show the real product: depict that exact" +
-  " product faithfully — same design, branding, colors, and packaging or" +
-  " interface details. Do not invent a different version of the product.";
+/** Uploads a stored file to FAL storage and returns its URL. */
+async function uploadToFal(blob: Blob, name: string): Promise<string> {
+  const type = blob.type || "image/png";
+  const extension =
+    type === "image/jpeg" ? "jpg" : type === "image/webp" ? "webp" : "png";
+  const file = new File([blob], `${name}.${extension}`, { type });
+  return await fal.storage.upload(file);
+}
 
 function falErrorMessage(error: unknown): string {
   if (error && typeof error === "object") {
@@ -85,11 +166,21 @@ export const processQueue = internalAction({
         ? await decryptSecret(byok.fal)
         : process.env.FAL_KEY,
     });
-    const { job, prompt, productImages, styleRef } = bundle;
+    const { job, prompt, productImages, styleRef, logoRef, sourceRef } =
+      bundle;
     try {
+      // Spin-offs: the approved ad itself is the main reference. It has
+      // no FAL cache field, so it uploads once per job.
+      let sourceUrl: string | null = null;
+      if (sourceRef) {
+        const blob = await ctx.storage.get(sourceRef.storageId);
+        if (!blob) throw new Error("The original ad's image file is missing.");
+        sourceUrl = await uploadToFal(blob, "approved-ad");
+      }
+
       // Template style example: upload to FAL once, cache on the template.
       let styleUrl: string | null = null;
-      if (styleRef) {
+      if (styleRef && !sourceRef) {
         if (styleRef.falUrl) {
           styleUrl = styleRef.falUrl;
         } else {
@@ -102,6 +193,25 @@ export const processQueue = internalAction({
             await ctx.runMutation(internal.templates.setExampleFalUrl, {
               templateId: styleRef.templateId,
               falUrl: styleUrl,
+            });
+          }
+        }
+      }
+
+      // Brand logo: attached to every render (it applies even when the
+      // ad doesn't show the product). Upload once, cache on the project.
+      let logoUrl: string | null = null;
+      if (logoRef) {
+        if (logoRef.falUrl) {
+          logoUrl = logoRef.falUrl;
+        } else {
+          const blob = await ctx.storage.get(logoRef.storageId);
+          if (blob) {
+            logoUrl = await uploadToFal(blob, "brand-logo");
+            await ctx.runMutation(internal.brandLogo.setFalUrl, {
+              projectId: args.projectId,
+              storageId: logoRef.storageId,
+              falUrl: logoUrl,
             });
           }
         }
@@ -132,27 +242,40 @@ export const processQueue = internalAction({
         }
       }
 
-      // Style example first, then product photos — the suffixes below
-      // reference this ordering.
-      const imageUrls = [...(styleUrl ? [styleUrl] : []), ...productUrls];
+      // Order matters: referenceInstructions describes each image by
+      // its position. Source ad (or style example), logo, products.
+      const leadUrl = sourceUrl ?? styleUrl;
+      const imageUrls = [
+        ...(leadUrl ? [leadUrl] : []),
+        ...(logoUrl ? [logoUrl] : []),
+        ...productUrls,
+      ];
       const useEdit = imageUrls.length > 0;
-      const suffix =
-        styleUrl && productUrls.length > 0
-          ? STYLE_AND_PRODUCT_SUFFIX
-          : styleUrl
-            ? STYLE_ONLY_SUFFIX
-            : productUrls.length > 0
-              ? PRODUCT_ONLY_SUFFIX
-              : "";
+      // Spin-offs carry the override ratio in prompt.aspectRatio.
+      const size = mapAspect(prompt.aspectRatio);
+      const instructions = referenceInstructions({
+        source: sourceUrl
+          ? { width: size.width, height: size.height, ratio: prompt.aspectRatio }
+          : null,
+        style: styleUrl !== null && !sourceUrl,
+        logo: logoUrl !== null,
+        productCount: productUrls.length,
+      });
+      // A spin-off leads with the adaptation instructions; the original
+      // brief follows as context, since it may describe the old canvas.
+      const promptText = sourceUrl
+        ? `${instructions.trim()}\n\nOriginal brief, for context only. Where` +
+          " it conflicts with the approved ad or the new canvas, follow the" +
+          ` approved ad and the new canvas: ${prompt.prompt}`
+        : prompt.prompt + instructions;
       // Admin-configurable FAL endpoint; references go to its /edit
       // variant. Params adapt per model family: quality is a gpt-image
       // concept, aspect_ratio is what Gemini-style models expect.
       const model = settings.imageModel;
       const isGptImage = model.startsWith("openai/gpt-image");
       const endpoint = useEdit ? `${model}/edit` : model;
-      const size = mapAspect(prompt.aspectRatio);
       const input: Record<string, unknown> = {
-        prompt: prompt.prompt + suffix,
+        prompt: promptText,
         image_size: size,
         num_images: 1,
         output_format: "png",

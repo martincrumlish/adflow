@@ -24,6 +24,151 @@ import { errorMessage } from "@/lib/errors";
 const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const MAX_IMAGES = 3;
 
+// Checkerboard so transparent logos read as transparent.
+const CHECKERBOARD: React.CSSProperties = {
+  backgroundImage:
+    "repeating-conic-gradient(color-mix(in oklch, var(--muted-foreground) 14%, transparent) 0% 25%, transparent 0% 50%)",
+  backgroundSize: "16px 16px",
+};
+
+/** Uploads a file to Convex storage and returns its storage id. */
+async function uploadFile(
+  uploadUrl: string,
+  file: File,
+): Promise<Id<"_storage">> {
+  const response = await fetch(uploadUrl, {
+    method: "POST",
+    headers: { "Content-Type": file.type },
+    body: file,
+  });
+  if (!response.ok) throw new Error(`Upload failed (${response.status})`);
+  const { storageId } = (await response.json()) as {
+    storageId: Id<"_storage">;
+  };
+  return storageId;
+}
+
+function BrandLogoCard({ projectId }: { projectId: Id<"projects"> }) {
+  const logoUrl = useQuery(api.brandLogo.url, { projectId });
+  const generateUploadUrl = useMutation(api.productImages.generateUploadUrl);
+  const setLogo = useMutation(api.brandLogo.set);
+  const removeLogo = useMutation(api.brandLogo.remove);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState<"uploading" | "removing" | null>(null);
+
+  async function onFileSelected(file: File | undefined) {
+    if (!file) return;
+    if (!ACCEPTED_TYPES.includes(file.type)) {
+      toast.error("Logos must be PNG, JPG, or WebP images.");
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
+    setBusy("uploading");
+    try {
+      const storageId = await uploadFile(await generateUploadUrl(), file);
+      await setLogo({ projectId, storageId });
+      toast.success("Logo saved. New ads will use it.");
+    } catch (error) {
+      toast.error(errorMessage(error, "Upload failed."));
+    } finally {
+      setBusy(null);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  async function onRemove() {
+    setBusy("removing");
+    try {
+      await removeLogo({ projectId });
+      toast.success("Logo removed.");
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Brand logo</CardTitle>
+        <CardDescription>
+          Optional. Attach your logo and every ad will reproduce it exactly as
+          designed instead of redrawing it. A PNG with a transparent
+          background works best; JPG and WebP are fine too.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {logoUrl === undefined ? (
+          <Skeleton className="h-28 w-48 rounded-lg" />
+        ) : logoUrl ? (
+          <div className="flex flex-wrap items-end gap-3">
+            <div
+              className="flex h-28 w-48 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/40 p-3"
+              style={CHECKERBOARD}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={logoUrl}
+                alt="Brand logo"
+                className="max-h-full max-w-full object-contain"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={busy !== null}
+                onClick={() => inputRef.current?.click()}
+              >
+                {busy === "uploading" && (
+                  <Loader2 className="size-4 animate-spin" />
+                )}
+                Replace
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-muted-foreground hover:text-red-400"
+                disabled={busy !== null}
+                onClick={() => void onRemove()}
+              >
+                {busy === "removing" && (
+                  <Loader2 className="size-4 animate-spin" />
+                )}
+                Remove
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => inputRef.current?.click()}
+            className="flex h-28 w-48 flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-border text-muted-foreground transition-colors hover:border-ring/50 hover:text-foreground disabled:opacity-50"
+          >
+            {busy === "uploading" ? (
+              <Loader2 className="size-5 animate-spin" />
+            ) : (
+              <ImagePlus className="size-5" />
+            )}
+            <span className="text-[11px]">
+              {busy === "uploading" ? "Uploading…" : "Add logo"}
+            </span>
+          </button>
+        )}
+        <input
+          ref={inputRef}
+          type="file"
+          accept={ACCEPTED_TYPES.join(",")}
+          hidden
+          onChange={(event) => void onFileSelected(event.target.files?.[0])}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function SetupPage() {
   const params = useParams<{ id: string }>();
   const projectId = params.id as Id<"projects">;
@@ -73,16 +218,7 @@ export default function SetupPage() {
           toast.error(`${file.name}: only PNG, JPG, or WebP images.`);
           continue;
         }
-        const uploadUrl = await generateUploadUrl();
-        const response = await fetch(uploadUrl, {
-          method: "POST",
-          headers: { "Content-Type": file.type },
-          body: file,
-        });
-        if (!response.ok) throw new Error(`Upload failed (${response.status})`);
-        const { storageId } = (await response.json()) as {
-          storageId: Id<"_storage">;
-        };
+        const storageId = await uploadFile(await generateUploadUrl(), file);
         await attach({ projectId, storageId, filename: file.name });
       }
     } catch (error) {
@@ -152,6 +288,8 @@ export default function SetupPage() {
           </form>
         </CardContent>
       </Card>
+
+      <BrandLogoCard projectId={projectId} />
 
       <Card>
         <CardHeader>

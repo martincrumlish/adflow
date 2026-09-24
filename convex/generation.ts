@@ -1,6 +1,6 @@
-import { ConvexError, v } from "convex/values";
+import { ConvexError, v, type Infer } from "convex/values";
 import { internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import {
   internalMutation,
   internalQuery,
@@ -42,6 +42,8 @@ export const jobsForProject = query({
       templateName: v.string(),
       templateNumber: v.number(),
       aspectRatio: v.string(),
+      // Placement spin-off of an existing image (see spinoffs.ts).
+      isSpinoff: v.boolean(),
     }),
   ),
   handler: async (ctx, args) => {
@@ -53,15 +55,23 @@ export const jobsForProject = query({
     const result = [];
     for (const job of jobs) {
       const prompt = await ctx.db.get(job.promptId);
+      // Spin-offs outlive prompt re-runs; the source image keeps a copy
+      // of the format name.
+      const source = job.sourceImageId
+        ? await ctx.db.get(job.sourceImageId)
+        : null;
       result.push({
         _id: job._id,
         promptId: job.promptId,
         status: job.status,
         quality: job.quality,
         error: job.error,
-        templateName: prompt?.templateName ?? "(deleted prompt)",
+        templateName:
+          prompt?.templateName ?? source?.templateName ?? "(deleted prompt)",
         templateNumber: prompt?.templateNumber ?? 0,
-        aspectRatio: prompt?.aspectRatio ?? "1:1",
+        aspectRatio:
+          job.aspectRatioOverride ?? prompt?.aspectRatio ?? "1:1",
+        isSpinoff: job.sourceImageId !== undefined,
       });
     }
     return result.sort((a, b) => a.templateNumber - b.templateNumber);
@@ -185,7 +195,8 @@ export const regenerateOne = mutation({
     }
     const { project } = await requireProject(ctx, prompt.projectId);
     const activeForPrompt = (await activeJobs(ctx, prompt.projectId)).filter(
-      (job) => job.promptId === args.promptId,
+      // Spin-offs share the promptId but never replace this image.
+      (job) => job.promptId === args.promptId && !job.sourceImageId,
     );
     if (activeForPrompt.length > 0) {
       throw new ConvexError("This image is already being regenerated.");
@@ -256,6 +267,7 @@ const claimedBundle = v.union(
       }),
     ),
     // The source template's layout/style example, when it has one.
+    // Never set for spin-offs: the source image already embodies it.
     styleRef: v.union(
       v.null(),
       v.object({
@@ -264,8 +276,109 @@ const claimedBundle = v.union(
         falUrl: v.optional(v.string()),
       }),
     ),
+    // The project's brand logo, attached to every render when present.
+    logoRef: v.union(
+      v.null(),
+      v.object({
+        storageId: v.id("_storage"),
+        falUrl: v.optional(v.string()),
+      }),
+    ),
+    // Spin-offs only: the approved ad being re-rendered at a new ratio.
+    sourceRef: v.union(
+      v.null(),
+      v.object({
+        imageId: v.id("images"),
+        storageId: v.id("_storage"),
+      }),
+    ),
   }),
 );
+
+type Bundle = NonNullable<Infer<typeof claimedBundle>>;
+
+/**
+ * Builds the worker bundle for one queued job and marks it running.
+ * Returns null (after failing the job) when the job can't run.
+ */
+async function claimJob(
+  ctx: MutationCtx,
+  job: Doc<"jobs">,
+): Promise<Bundle | null> {
+  const fail = async (error: string) => {
+    await ctx.db.patch(job._id, {
+      status: "error",
+      error,
+      finishedAt: Date.now(),
+    });
+    return null;
+  };
+  const project = await ctx.db.get(job.projectId);
+  if (!project) return await fail("The project for this job was deleted.");
+  // Prompt rows are replaced by Phase 2 re-runs, so spin-offs can't
+  // depend on theirs: the source image carries copies of what they need.
+  const prompt = await ctx.db.get(job.promptId);
+  let promptBundle: Bundle["prompt"];
+  let sourceRef: Bundle["sourceRef"] = null;
+  if (job.sourceImageId) {
+    const source = await ctx.db.get(job.sourceImageId);
+    if (!source) {
+      return await fail(
+        "The original ad was deleted before this size could be made.",
+      );
+    }
+    promptBundle = {
+      _id: job.promptId,
+      prompt: source.promptText,
+      aspectRatio: job.aspectRatioOverride ?? prompt?.aspectRatio ?? "1:1",
+      needsProductImages: prompt?.needsProductImages ?? false,
+      templateName: source.templateName,
+    };
+    sourceRef = { imageId: source._id, storageId: source.storageId };
+  } else {
+    if (!prompt) return await fail("The prompt for this job was deleted.");
+    promptBundle = {
+      _id: prompt._id,
+      prompt: prompt.prompt,
+      aspectRatio: prompt.aspectRatio,
+      needsProductImages: prompt.needsProductImages,
+      templateName: prompt.templateName,
+    };
+  }
+  await ctx.db.patch(job._id, { status: "running", startedAt: Date.now() });
+  const productImages = promptBundle.needsProductImages
+    ? await ctx.db
+        .query("productImages")
+        .withIndex("by_project", (q) => q.eq("projectId", job.projectId))
+        .collect()
+    : [];
+  const template =
+    !job.sourceImageId && prompt?.templateId
+      ? await ctx.db.get(prompt.templateId)
+      : null;
+  return {
+    job: { _id: job._id, quality: job.quality },
+    prompt: promptBundle,
+    productImages: productImages.map((image) => ({
+      _id: image._id,
+      storageId: image.storageId,
+      filename: image.filename,
+      falUrl: image.falUrl,
+    })),
+    styleRef:
+      template?.exampleImageId != null
+        ? {
+            templateId: template._id,
+            storageId: template.exampleImageId,
+            falUrl: template.exampleFalUrl,
+          }
+        : null,
+    logoRef: project.logoImageId
+      ? { storageId: project.logoImageId, falUrl: project.logoFalUrl }
+      : null,
+    sourceRef,
+  };
+}
 
 /**
  * Atomically claims the next queued job. Returns null when the
@@ -298,59 +411,22 @@ export const claimNext = internalMutation({
     if (activeCount >= concurrencyCap()) {
       return null; // Pool is saturated; this worker retires.
     }
-    const next = await ctx.db
-      .query("jobs")
-      .withIndex("by_project_status", (q) =>
-        q.eq("projectId", args.projectId).eq("status", "queued"),
-      )
-      .first();
-    if (!next) {
-      await finalizeIfDrained(ctx, args.projectId);
-      return null;
+    // Jobs that can't run are failed in claimJob; keep going to the
+    // next one so a bad job never stalls the pool or the project.
+    for (;;) {
+      const next = await ctx.db
+        .query("jobs")
+        .withIndex("by_project_status", (q) =>
+          q.eq("projectId", args.projectId).eq("status", "queued"),
+        )
+        .first();
+      if (!next) {
+        await finalizeIfDrained(ctx, args.projectId);
+        return null;
+      }
+      const bundle = await claimJob(ctx, next);
+      if (bundle) return bundle;
     }
-    const prompt = await ctx.db.get(next.promptId);
-    if (!prompt) {
-      await ctx.db.patch(next._id, {
-        status: "error",
-        error: "The prompt for this job was deleted.",
-        finishedAt: Date.now(),
-      });
-      return null;
-    }
-    await ctx.db.patch(next._id, { status: "running", startedAt: Date.now() });
-    const productImages = prompt.needsProductImages
-      ? await ctx.db
-          .query("productImages")
-          .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
-          .collect()
-      : [];
-    const template = prompt.templateId
-      ? await ctx.db.get(prompt.templateId)
-      : null;
-    return {
-      job: { _id: next._id, quality: next.quality },
-      prompt: {
-        _id: prompt._id,
-        prompt: prompt.prompt,
-        aspectRatio: prompt.aspectRatio,
-        needsProductImages: prompt.needsProductImages,
-        templateName: prompt.templateName,
-      },
-      productImages: productImages.map((image) => ({
-        _id: image._id,
-        storageId: image.storageId,
-        filename: image.filename,
-        falUrl: image.falUrl,
-      })),
-      styleRef:
-        template?.exampleImageId != null
-          ? {
-              templateId: template._id,
-              storageId: template.exampleImageId,
-              falUrl: template.exampleFalUrl,
-            }
-          : null,
-    };
   },
 });
 
@@ -371,6 +447,26 @@ export const completeJob = internalMutation({
       error: undefined,
     });
     const prompt = await ctx.db.get(job.promptId);
+    if (job.sourceImageId) {
+      // Placement spin-off: added next to its source, replaces nothing.
+      const source = await ctx.db.get(job.sourceImageId);
+      await ctx.db.insert("images", {
+        projectId: job.projectId,
+        promptId: job.promptId,
+        jobId: args.jobId,
+        storageId: args.storageId,
+        templateName:
+          source?.templateName ?? prompt?.templateName ?? "template",
+        promptText: source?.promptText ?? prompt?.prompt ?? "",
+        aspectRatio:
+          job.aspectRatioOverride ?? source?.aspectRatio ?? "1:1",
+        width: args.width,
+        height: args.height,
+        spinoffOf: job.sourceImageId,
+      });
+      await finalizeIfDrained(ctx, job.projectId);
+      return null;
+    }
     if (job.replaces === "previous-runs") {
       // A new run replaces the previous run's renders for this ad, but
       // keeps sibling variations from the same run (their jobs were
@@ -446,6 +542,8 @@ export const getPromptGenInputs = internalQuery({
         needsProductImages: v.boolean(),
       }),
     ),
+    // The brand logo is attached to every render as a reference.
+    hasLogo: v.boolean(),
   }),
   handler: async (ctx, args) => {
     const { project } = await requireProject(ctx, args.projectId);
@@ -474,6 +572,7 @@ export const getPromptGenInputs = internalQuery({
         ? { document: dna.document, promptModifier: dna.promptModifier }
         : null,
       templates: templates.sort((a, b) => a.number - b.number),
+      hasLogo: project.logoImageId !== undefined,
     };
   },
 });

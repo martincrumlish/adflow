@@ -11,6 +11,7 @@
 import type * as apiKeys from "../apiKeys.js";
 import type * as auth from "../auth.js";
 import type * as brandDna from "../brandDna.js";
+import type * as brandLogo from "../brandLogo.js";
 import type * as exampleSeeder from "../exampleSeeder.js";
 import type * as generation from "../generation.js";
 import type * as generationWorker from "../generationWorker.js";
@@ -28,6 +29,7 @@ import type * as prompts from "../prompts.js";
 import type * as research from "../research.js";
 import type * as settings from "../settings.js";
 import type * as signupLinks from "../signupLinks.js";
+import type * as spinoffs from "../spinoffs.js";
 import type * as templates from "../templates.js";
 import type * as users from "../users.js";
 
@@ -41,6 +43,7 @@ declare const fullApi: ApiFromModules<{
   apiKeys: typeof apiKeys;
   auth: typeof auth;
   brandDna: typeof brandDna;
+  brandLogo: typeof brandLogo;
   exampleSeeder: typeof exampleSeeder;
   generation: typeof generation;
   generationWorker: typeof generationWorker;
@@ -58,6 +61,7 @@ declare const fullApi: ApiFromModules<{
   research: typeof research;
   settings: typeof settings;
   signupLinks: typeof signupLinks;
+  spinoffs: typeof spinoffs;
   templates: typeof templates;
   users: typeof users;
 }>;

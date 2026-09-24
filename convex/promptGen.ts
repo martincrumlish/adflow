@@ -89,6 +89,7 @@ export const run = action({
               project.productName,
               bundle.brandDna.document,
               bundle.templates,
+              { hasLogo: bundle.hasLogo },
             ),
           },
         ],

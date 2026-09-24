@@ -8,6 +8,7 @@ import {
   FolderDown,
   ImageIcon,
   Loader2,
+  Proportions,
   RefreshCw,
   Trash2,
 } from "lucide-react";
@@ -28,6 +29,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SpinoffDialog } from "@/components/spinoff-dialog";
 import { errorMessage } from "@/lib/errors";
 
 function slugify(text: string): string {
@@ -49,6 +51,7 @@ type GalleryImage = {
   width: number;
   height: number;
   url: string | null;
+  spinoffOf?: Id<"images">;
 };
 
 async function downloadImage(image: GalleryImage) {
@@ -81,6 +84,9 @@ export default function GalleryPage() {
   const [deleteTarget, setDeleteTarget] = useState<GalleryImage | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [zipping, setZipping] = useState(false);
+  const [spinoffTarget, setSpinoffTarget] = useState<GalleryImage | null>(
+    null,
+  );
 
   const generating = project?.status === "generating";
   const remaining = useMemo(
@@ -247,6 +253,15 @@ export default function GalleryPage() {
                     <Button
                       variant="ghost"
                       size="icon"
+                      title="Spin off to other sizes"
+                      className="size-7 text-white hover:bg-white/20 hover:text-white"
+                      onClick={() => setSpinoffTarget(image)}
+                    >
+                      <Proportions className="size-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       title="Delete"
                       className="size-7 text-white hover:bg-red-500/40 hover:text-white"
                       onClick={() => setDeleteTarget(image)}
@@ -260,7 +275,15 @@ export default function GalleryPage() {
                 <span className="truncate text-xs font-medium">
                   {image.templateName}
                 </span>
-                <span className="shrink-0 text-[10px] text-muted-foreground">
+                <span className="flex shrink-0 items-center gap-1.5 text-[10px] text-muted-foreground">
+                  {image.spinoffOf && (
+                    <Badge
+                      variant="outline"
+                      className="h-4 px-1 text-[10px] text-muted-foreground"
+                    >
+                      spin-off
+                    </Badge>
+                  )}
                   {image.aspectRatio}
                 </span>
               </figcaption>
@@ -309,7 +332,7 @@ export default function GalleryPage() {
                   </p>
                 </div>
               )}
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button
                   size="sm"
                   className="gap-1.5"
@@ -329,6 +352,18 @@ export default function GalleryPage() {
                 >
                   <RefreshCw className="size-3.5" />
                   Regenerate
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="gap-1.5"
+                  onClick={() => {
+                    setSpinoffTarget(lightbox);
+                    setLightbox(null);
+                  }}
+                >
+                  <Proportions className="size-3.5" />
+                  Spin off to other sizes
                 </Button>
                 <Button
                   size="sm"
@@ -375,6 +410,11 @@ export default function GalleryPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <SpinoffDialog
+        image={spinoffTarget}
+        onClose={() => setSpinoffTarget(null)}
+      />
     </div>
   );
 }
