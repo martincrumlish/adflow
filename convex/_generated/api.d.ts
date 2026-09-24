@@ -22,6 +22,7 @@ import type * as lib_secretbox from "../lib/secretbox.js";
 import type * as passwordReset from "../passwordReset.js";
 import type * as plans from "../plans.js";
 import type * as productImages from "../productImages.js";
+import type * as projectDuplicate from "../projectDuplicate.js";
 import type * as projects from "../projects.js";
 import type * as promptGen from "../promptGen.js";
 import type * as prompts from "../prompts.js";
@@ -52,6 +53,7 @@ declare const fullApi: ApiFromModules<{
   passwordReset: typeof passwordReset;
   plans: typeof plans;
   productImages: typeof productImages;
+  projectDuplicate: typeof projectDuplicate;
   projects: typeof projects;
   promptGen: typeof promptGen;
   prompts: typeof prompts;
