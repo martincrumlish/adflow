@@ -21,6 +21,7 @@ import {
   requireAdmin,
   requireUser,
 } from "./lib/access";
+import { deleteShareAndFeedback } from "./shares";
 
 export const viewer = query({
   args: {},
@@ -299,6 +300,8 @@ export async function deleteProjectContents(
   for (const prompt of await byProject("prompts"))
     await ctx.db.delete(prompt._id);
   for (const dna of await byProject("brandDna")) await ctx.db.delete(dna._id);
+  for (const share of await byProject("shares"))
+    await deleteShareAndFeedback(ctx, share._id);
   for (const productImage of await byProject("productImages")) {
     await ctx.storage.delete(productImage.storageId);
     await ctx.db.delete(productImage._id);

@@ -9,6 +9,7 @@ import {
   ImageIcon,
   Loader2,
   RefreshCw,
+  Share2,
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
@@ -28,6 +29,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  ReviewBadge,
+  ReviewNote,
+  ShareDialog,
+} from "@/components/share-dialog";
 import { errorMessage } from "@/lib/errors";
 
 function slugify(text: string): string {
@@ -81,6 +87,13 @@ export default function GalleryPage() {
   const [deleteTarget, setDeleteTarget] = useState<GalleryImage | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [zipping, setZipping] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const reviewFeedback = useQuery(api.shares.feedbackForProject, { projectId });
+  const feedbackByImage = useMemo(
+    () => new Map((reviewFeedback ?? []).map((f) => [f.imageId, f])),
+    [reviewFeedback],
+  );
+  const lightboxFeedback = lightbox && feedbackByImage.get(lightbox._id);
 
   const generating = project?.status === "generating";
   const remaining = useMemo(
@@ -177,10 +190,24 @@ export default function GalleryPage() {
         </div>
       ) : (
         <>
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="mr-auto text-sm text-muted-foreground">
               {images.length} finished ad{images.length === 1 ? "" : "s"}
             </p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-2"
+              onClick={() => setShareOpen(true)}
+            >
+              <Share2 className="size-4" />
+              Share for review
+            </Button>
+            <ShareDialog
+              projectId={projectId}
+              open={shareOpen}
+              onOpenChange={setShareOpen}
+            />
             <Button
               size="sm"
               className="gap-2"
@@ -260,6 +287,10 @@ export default function GalleryPage() {
                 <span className="truncate text-xs font-medium">
                   {image.templateName}
                 </span>
+                <ReviewBadge
+                  feedback={feedbackByImage.get(image._id)}
+                  className="ml-auto"
+                />
                 <span className="shrink-0 text-[10px] text-muted-foreground">
                   {image.aspectRatio}
                 </span>
@@ -291,6 +322,7 @@ export default function GalleryPage() {
                   Generated {new Date(lightbox._creationTime).toLocaleString()}
                 </DialogDescription>
               </DialogHeader>
+              {lightboxFeedback && <ReviewNote feedback={lightboxFeedback} />}
               {lightbox.url && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
