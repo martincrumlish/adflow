@@ -102,6 +102,14 @@ export const run = action({
       });
       throw new ConvexError(`Brand research failed: ${message.slice(0, 200)}`);
     }
+    await ctx
+      .runMutation(internal.usage.recordEvent, {
+        projectId: args.projectId,
+        kind: "research",
+        model: settings.textModel,
+        byok: Boolean(byok.openrouter),
+      })
+      .catch((error) => console.error("Usage record failed", error));
     return null;
   },
 });

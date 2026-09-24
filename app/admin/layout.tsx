@@ -4,6 +4,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
 import {
   ArrowLeft,
+  BarChart3,
   CreditCard,
   LayoutTemplate,
   Link2,
@@ -33,7 +34,13 @@ const SECTIONS = [
     href: "/admin/plans",
     label: "Plans",
     icon: CreditCard,
-    description: "Plans tag accounts — they don't gate features yet.",
+    description: "Plans set each account's monthly image allowance.",
+  },
+  {
+    href: "/admin/usage",
+    label: "Usage",
+    icon: BarChart3,
+    description: "Renders and estimated spend per user, by month.",
   },
   {
     href: "/admin/links",

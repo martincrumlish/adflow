@@ -17,7 +17,9 @@ import type * as generationWorker from "../generationWorker.js";
 import type * as http from "../http.js";
 import type * as images from "../images.js";
 import type * as lib_access from "../lib/access.js";
+import type * as lib_costs from "../lib/costs.js";
 import type * as lib_prompts from "../lib/prompts.js";
+import type * as lib_quota from "../lib/quota.js";
 import type * as lib_secretbox from "../lib/secretbox.js";
 import type * as passwordReset from "../passwordReset.js";
 import type * as plans from "../plans.js";
@@ -29,6 +31,7 @@ import type * as research from "../research.js";
 import type * as settings from "../settings.js";
 import type * as signupLinks from "../signupLinks.js";
 import type * as templates from "../templates.js";
+import type * as usage from "../usage.js";
 import type * as users from "../users.js";
 
 import type {
@@ -47,7 +50,9 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   images: typeof images;
   "lib/access": typeof lib_access;
+  "lib/costs": typeof lib_costs;
   "lib/prompts": typeof lib_prompts;
+  "lib/quota": typeof lib_quota;
   "lib/secretbox": typeof lib_secretbox;
   passwordReset: typeof passwordReset;
   plans: typeof plans;
@@ -59,6 +64,7 @@ declare const fullApi: ApiFromModules<{
   settings: typeof settings;
   signupLinks: typeof signupLinks;
   templates: typeof templates;
+  usage: typeof usage;
   users: typeof users;
 }>;
 

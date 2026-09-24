@@ -18,6 +18,7 @@ import { api } from "@/convex/_generated/api";
 import { Logo } from "@/components/logo";
 import { NewProjectDialog } from "@/components/new-project-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { UsageMeter } from "@/components/usage-meter";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -138,6 +139,7 @@ export function AppSidebar() {
           )}
         </div>
       </nav>
+      <UsageMeter />
       <div className="border-t border-sidebar-border p-3">
         <div className="flex items-center gap-1">
           <DropdownMenu>
