@@ -11,7 +11,7 @@ images one by one in a background queue — you come back to a finished gallery.
 - **Next.js** (App Router, TypeScript) + **Tailwind v4** + **shadcn/ui** + `lucide-react`
 - **Convex** — database, server functions, file storage, auth, background jobs
 - **Convex Auth** — email + password, tokenised signup links, password reset
-- **Resend** — transactional email (password reset)
+- **Resend** — transactional email (welcome + password reset)
 - **OpenRouter** — LLM phases (brand research with the `openrouter:web_search`
   server tool, prompt generation), called with the `openai` SDK
 - **FAL** — image generation via `openai/gpt-image-2` and
@@ -58,6 +58,8 @@ accounts instead of the shared keys.
   sign up without a link (first-admin bootstrap, via `/signup`).
 - `/admin` — user management (add/edit/delete, plan/role), plans CRUD, signup
   links.
+- New accounts receive a welcome email: on signup, or when an admin adds
+  them (optionally including the sign-in details the admin set).
 
 ## Development
 
@@ -82,7 +84,7 @@ Convex deployment env vars (server-side only — never exposed to the browser):
 | `OPENROUTER_API_KEY` | LLM phases (research + prompt generation) |
 | `OPENROUTER_MODEL` | optional; defaults to `anthropic/claude-sonnet-5` |
 | `FAL_KEY` | image generation |
-| `RESEND_API_KEY` | password-reset email |
+| `RESEND_API_KEY` | welcome + password-reset email |
 | `AUTH_EMAIL_FROM` | from-address (display name or `Name <addr>`) |
 | `ADMIN_EMAILS` | comma-separated admin allowlist |
 | `SITE_URL` | absolute app URL used in emails |
@@ -90,6 +92,12 @@ Convex deployment env vars (server-side only — never exposed to the browser):
 | `BYOK_ENCRYPTION_KEY` | 32-byte base64 key encrypting users' own API keys |
 | `GENERATION_CONCURRENCY` | optional; parallel FAL calls per project (1–8, default 4) |
 | `OPENROUTER_MODEL` | optional env fallback; admin Settings override it |
+
+Email: when `AUTH_EMAIL_FROM` is only a display name, mail goes out from
+Resend's shared `onboarding@resend.dev` sender, which Resend only delivers to
+the Resend account owner's own address. For real customers, set it to a full
+`Name <addr>` on a domain verified in Resend. Check delivery with
+`npx convex run emails:sendTest '{"to": "you@example.com"}'`.
 
 Frontend (Vercel / `.env.local`):
 

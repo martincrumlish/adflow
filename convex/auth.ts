@@ -1,6 +1,7 @@
 ﻿import { convexAuth } from "@convex-dev/auth/server";
 import { Password } from "@convex-dev/auth/providers/Password";
 import { ConvexError } from "convex/values";
+import { internal } from "./_generated/api";
 import type { DataModel, Id } from "./_generated/dataModel";
 import type { DatabaseWriter } from "./_generated/server";
 import { adminEmails } from "./lib/access";
@@ -55,10 +56,23 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
         });
       }
 
+      // Self-service signups get a welcome email. Scheduled, so it only
+      // goes out if this mutation commits, and a failed send can't break
+      // signup. Admin-provisioned accounts are handled in users.adminCreate
+      // (which can include the temporary password).
+      const welcome = async (userId: Id<"users">) => {
+        await ctx.scheduler.runAfter(0, internal.emails.sendWelcome, {
+          userId,
+        });
+        return userId;
+      };
+
       // Bootstrap: emails on the ADMIN_EMAILS list may sign up without
       // a link, so the first admin can get in.
       if (adminEmails().includes(email)) {
-        return await db.insert("users", { email, role: "admin" });
+        return await welcome(
+          await db.insert("users", { email, role: "admin" }),
+        );
       }
 
       // Everyone else needs an active signup link.
@@ -76,11 +90,13 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
           "This signup link is invalid or has been deactivated.",
         );
       }
-      return await db.insert("users", {
-        email,
-        role: "user",
-        planId: link.planId,
-      });
+      return await welcome(
+        await db.insert("users", {
+          email,
+          role: "user",
+          planId: link.planId,
+        }),
+      );
     },
   },
 });

@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -49,6 +50,7 @@ export default function AdminUsersPage() {
   const [addPending, setAddPending] = useState(false);
   const [addPlan, setAddPlan] = useState<string>(NO_PLAN);
   const [addRole, setAddRole] = useState<"admin" | "user">("user");
+  const [addSendWelcome, setAddSendWelcome] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<{
     id: Id<"users">;
     email: string;
@@ -65,11 +67,17 @@ export default function AdminUsersPage() {
         password: formData.get("password") as string,
         planId: addPlan === NO_PLAN ? null : (addPlan as Id<"plans">),
         role: addRole,
+        sendWelcome: addSendWelcome,
       });
-      toast.success("User created.");
+      toast.success(
+        addSendWelcome
+          ? "User created. Their welcome email is on its way."
+          : "User created.",
+      );
       setAddOpen(false);
       setAddPlan(NO_PLAN);
       setAddRole("user");
+      setAddSendWelcome(true);
     } catch (error) {
       toast.error(errorMessage(error));
     } finally {
@@ -211,8 +219,9 @@ export default function AdminUsersPage() {
           <DialogHeader>
             <DialogTitle>Add user</DialogTitle>
             <DialogDescription>
-              Creates an account directly — share the credentials with the
-              customer yourself.
+              Creates the account right away. We can email the customer their
+              sign-in details, or you can untick the box and share them
+              yourself.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={onAddUser} className="space-y-4">
@@ -264,6 +273,22 @@ export default function AdminUsersPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <Checkbox
+                id="au-send-welcome"
+                className="mt-0.5"
+                checked={addSendWelcome}
+                onCheckedChange={(checked) =>
+                  setAddSendWelcome(checked === true)
+                }
+              />
+              <Label
+                htmlFor="au-send-welcome"
+                className="text-sm leading-snug font-normal"
+              >
+                Email them a welcome message with these sign-in details
+              </Label>
             </div>
             <Button type="submit" className="w-full" disabled={addPending}>
               {addPending && <Loader2 className="size-4 animate-spin" />}
