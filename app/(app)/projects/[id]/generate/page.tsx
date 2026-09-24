@@ -315,7 +315,15 @@ export default function GeneratePage() {
                       <span className="text-[11px] text-muted-foreground">
                         {job.quality}
                       </span>
-                      {job.status === "error" && (
+                      {job.status === "error" && job.isSpinoff && (
+                        <span
+                          className="text-[11px] text-muted-foreground"
+                          title="Spin-offs are re-run from the gallery: open the source ad and choose Spin off to other sizes."
+                        >
+                          Re-run from the gallery
+                        </span>
+                      )}
+                      {job.status === "error" && !job.isSpinoff && (
                         <Button
                           variant="ghost"
                           size="sm"

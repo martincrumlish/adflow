@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import { mutation } from "./_generated/server";
 import { concurrencyCap } from "./generation";
 import { requireProject } from "./lib/access";
+import { assertWithinQuota } from "./lib/quota";
 import { aspectRatio, jobQuality } from "./schema";
 
 /**
@@ -62,6 +63,8 @@ export const create = mutation({
         `The ${inFlight.join(" and ")} version of this ad is already being made.`,
       );
     }
+    // Spin-offs are ordinary renders as far as the plan is concerned.
+    await assertWithinQuota(ctx, project.userId, wanted.length);
 
     for (const ratio of wanted) {
       await ctx.db.insert("jobs", {
