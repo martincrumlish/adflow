@@ -2,6 +2,19 @@ import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { currentAdmin, requireAdmin } from "./lib/access";
 
+/** null clears the limit (unlimited); undefined leaves it unchanged. */
+const quotaArg = v.optional(v.union(v.number(), v.null()));
+
+function validQuota(quota: number | null | undefined) {
+  if (quota === undefined || quota === null) return quota;
+  if (!Number.isInteger(quota) || quota < 0) {
+    throw new ConvexError(
+      "Monthly image limit must be a whole number of 0 or more.",
+    );
+  }
+  return quota;
+}
+
 export const adminList = query({
   args: {},
   returns: v.array(
@@ -35,16 +48,19 @@ export const create = mutation({
   args: {
     name: v.string(),
     description: v.optional(v.string()),
+    monthlyImageQuota: quotaArg,
   },
   returns: v.id("plans"),
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
     const name = args.name.trim();
     if (!name) throw new ConvexError("Plan name is required.");
+    const quota = validQuota(args.monthlyImageQuota);
     return await ctx.db.insert("plans", {
       name,
       description: args.description?.trim() || undefined,
       active: true,
+      monthlyImageQuota: quota ?? undefined,
     });
   },
 });
@@ -55,18 +71,26 @@ export const update = mutation({
     name: v.optional(v.string()),
     description: v.optional(v.string()),
     active: v.optional(v.boolean()),
+    monthlyImageQuota: quotaArg,
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
     const plan = await ctx.db.get(args.planId);
     if (!plan) throw new ConvexError("Plan not found");
+    if (args.name !== undefined && !args.name.trim()) {
+      throw new ConvexError("Plan name is required.");
+    }
+    const quota = validQuota(args.monthlyImageQuota);
     await ctx.db.patch(args.planId, {
       ...(args.name !== undefined ? { name: args.name.trim() } : {}),
       ...(args.description !== undefined
         ? { description: args.description.trim() || undefined }
         : {}),
       ...(args.active !== undefined ? { active: args.active } : {}),
+      ...(quota !== undefined
+        ? { monthlyImageQuota: quota ?? undefined }
+        : {}),
     });
     return null;
   },

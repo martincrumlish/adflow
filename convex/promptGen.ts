@@ -146,6 +146,14 @@ export const run = action({
         `Prompt generation failed: ${message.slice(0, 200)}`,
       );
     }
+    await ctx
+      .runMutation(internal.usage.recordEvent, {
+        projectId: args.projectId,
+        kind: "copy",
+        model: settings.textModel,
+        byok: Boolean(byok.openrouter),
+      })
+      .catch((error) => console.error("Usage record failed", error));
     // Copy is saved; chain straight into image generation for the
     // one-click flow. Failures here are generation errors, not copy
     // errors, so they surface as-is.

@@ -187,6 +187,17 @@ export const processQueue = internalAction({
         width: output.width ?? size.width,
         height: output.height ?? size.height,
       });
+      // The image is saved; a failed usage write must not fail the job.
+      await ctx
+        .runMutation(internal.usage.recordEvent, {
+          projectId: args.projectId,
+          jobId: job._id,
+          kind: "image",
+          quality: job.quality,
+          model,
+          byok: Boolean(byok.fal),
+        })
+        .catch((error) => console.error("Usage record failed", error));
     } catch (error) {
       await ctx.runMutation(internal.generation.failJob, {
         jobId: job._id,

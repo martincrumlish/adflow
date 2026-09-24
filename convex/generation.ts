@@ -9,6 +9,7 @@ import {
   type MutationCtx,
 } from "./_generated/server";
 import { ownedProject, requireProject } from "./lib/access";
+import { assertWithinQuota } from "./lib/quota";
 import { aspectRatio, jobQuality } from "./schema";
 
 /** A running job older than this is considered dead and gets failed. */
@@ -98,13 +99,14 @@ async function beginRun(
   if (wanted.length === 0) {
     throw new ConvexError("No prompts selected. Generate prompts first.");
   }
+  const perPrompt = clampVariations(variations);
+  await assertWithinQuota(ctx, project.userId, wanted.length * perPrompt);
   // Clear finished jobs so the Generate view shows only this run.
   const oldJobs = await ctx.db
     .query("jobs")
     .withIndex("by_project", (q) => q.eq("projectId", projectId))
     .collect();
   for (const job of oldJobs) await ctx.db.delete(job._id);
-  const perPrompt = clampVariations(variations);
   for (const prompt of wanted.sort(
     (a, b) => a.templateNumber - b.templateNumber,
   )) {
@@ -190,6 +192,7 @@ export const regenerateOne = mutation({
     if (activeForPrompt.length > 0) {
       throw new ConvexError("This image is already being regenerated.");
     }
+    await assertWithinQuota(ctx, project.userId, 1);
     await ctx.db.insert("jobs", {
       projectId: prompt.projectId,
       promptId: args.promptId,

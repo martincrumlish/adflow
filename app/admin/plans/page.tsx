@@ -33,7 +33,16 @@ type PlanRow = {
   name: string;
   description?: string;
   active: boolean;
+  monthlyImageQuota?: number;
 };
+
+/** Blank means unlimited; anything else must be a whole number >= 0. */
+function parseQuota(raw: string): number | null | "invalid" {
+  const text = raw.trim();
+  if (!text) return null;
+  const value = Number(text);
+  return Number.isInteger(value) && value >= 0 ? value : "invalid";
+}
 
 export default function AdminPlansPage() {
   const plans = useQuery(api.plans.adminList);
@@ -49,13 +58,29 @@ export default function AdminPlansPage() {
     const formData = new FormData(event.currentTarget);
     const name = formData.get("name") as string;
     const description = formData.get("description") as string;
+    const monthlyImageQuota = parseQuota(
+      (formData.get("monthlyImageQuota") as string | null) ?? "",
+    );
+    if (monthlyImageQuota === "invalid") {
+      toast.error("Monthly image limit must be a whole number, or blank.");
+      return;
+    }
     setPending(true);
     try {
       if (editTarget) {
-        await updatePlan({ planId: editTarget._id, name, description });
+        await updatePlan({
+          planId: editTarget._id,
+          name,
+          description,
+          monthlyImageQuota,
+        });
         toast.success("Plan updated.");
       } else {
-        await createPlan({ name, description: description || undefined });
+        await createPlan({
+          name,
+          description: description || undefined,
+          monthlyImageQuota,
+        });
         toast.success("Plan created.");
       }
       setDialogOpen(false);
@@ -100,6 +125,7 @@ export default function AdminPlansPage() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Description</TableHead>
+                <TableHead className="text-right">Images / month</TableHead>
                 <TableHead className="text-right">Users</TableHead>
                 <TableHead className="text-right">Links</TableHead>
                 <TableHead>Active</TableHead>
@@ -112,6 +138,13 @@ export default function AdminPlansPage() {
                   <TableCell className="font-medium">{plan.name}</TableCell>
                   <TableCell className="max-w-64 truncate text-muted-foreground">
                     {plan.description ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {plan.monthlyImageQuota === undefined ? (
+                      <span className="text-muted-foreground">Unlimited</span>
+                    ) : (
+                      plan.monthlyImageQuota.toLocaleString()
+                    )}
                   </TableCell>
                   <TableCell className="text-right">{plan.userCount}</TableCell>
                   <TableCell className="text-right">{plan.linkCount}</TableCell>
@@ -157,7 +190,8 @@ export default function AdminPlansPage() {
           <DialogHeader>
             <DialogTitle>{editTarget ? "Edit plan" : "New plan"}</DialogTitle>
             <DialogDescription>
-              Plans tag accounts — they don&apos;t gate features yet.
+              A plan sets how many images its accounts can render each
+              month. Accounts on their own API keys are never limited.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={onSubmit} className="space-y-4">
@@ -179,6 +213,22 @@ export default function AdminPlansPage() {
                 defaultValue={editTarget?.description ?? ""}
                 placeholder="For growing brands"
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="plan-quota">Monthly image limit</Label>
+              <Input
+                id="plan-quota"
+                name="monthlyImageQuota"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                step={1}
+                defaultValue={editTarget?.monthlyImageQuota ?? ""}
+                placeholder="Unlimited"
+              />
+              <p className="text-xs text-muted-foreground">
+                Leave blank for unlimited. Resets on the 1st of each month.
+              </p>
             </div>
             <Button type="submit" className="w-full" disabled={pending}>
               {pending && <Loader2 className="size-4 animate-spin" />}
