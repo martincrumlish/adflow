@@ -1,14 +1,22 @@
 "use client";
 
 import { useMutation, useQuery } from "convex/react";
-import { FolderPlus, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import { Copy, FolderPlus, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import {
+  DuplicateProjectDialog,
+  type DuplicateSource,
+} from "@/components/duplicate-project-dialog";
 import { NewProjectDialog } from "@/components/new-project-dialog";
-import { StatusBadge, statusRoute } from "@/components/status-badge";
+import {
+  StatusBadge,
+  statusRoute,
+  type ProjectStatus,
+} from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,6 +35,14 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/errors";
 
+// Mid-run projects are in flux, so they can't be duplicated until they
+// settle (the server enforces the same rule).
+const DUPLICATE_BLOCKED: Partial<Record<ProjectStatus, string>> = {
+  researching: "Available once brand research finishes",
+  prompting: "Available once the ads finish preparing",
+  generating: "Available once generation finishes",
+};
+
 export default function DashboardPage() {
   const projects = useQuery(api.projects.list);
   const removeProject = useMutation(api.projects.remove);
@@ -35,6 +51,15 @@ export default function DashboardPage() {
     name: string;
   } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  // The target outlives `open` so the dialog keeps its content while it
+  // animates closed.
+  const [duplicateTarget, setDuplicateTarget] =
+    useState<DuplicateSource | null>(null);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
+
+  // Duplicates are always the owner's own projects, so the source is
+  // usually in this same list; fall back to a plain label if it's gone.
+  const projectNames = new Map(projects?.map((p) => [p._id, p.name]));
 
   async function confirmDelete() {
     if (!deleteTarget) return;
@@ -107,6 +132,16 @@ export default function DashboardPage() {
                   <p className="truncate text-xs text-muted-foreground">
                     {project.brandName} · {project.productName}
                   </p>
+                  {project.sourceProjectId && (
+                    <p className="mt-1 flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground">
+                      <Copy className="size-3 shrink-0" />
+                      <span className="truncate">
+                        {projectNames.has(project.sourceProjectId)
+                          ? `From ${projectNames.get(project.sourceProjectId)}`
+                          : "Duplicate"}
+                      </span>
+                    </p>
+                  )}
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -119,6 +154,23 @@ export default function DashboardPage() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      disabled={project.status in DUPLICATE_BLOCKED}
+                      title={DUPLICATE_BLOCKED[project.status]}
+                      // Let the pointer through so the title explains why.
+                      className="data-disabled:pointer-events-auto"
+                      onSelect={() => {
+                        setDuplicateTarget({
+                          _id: project._id,
+                          name: project.name,
+                          productName: project.productName,
+                        });
+                        setDuplicateOpen(true);
+                      }}
+                    >
+                      <Copy className="size-4" />
+                      Duplicate project
+                    </DropdownMenuItem>
                     <DropdownMenuItem
                       variant="destructive"
                       onClick={() =>
@@ -140,6 +192,14 @@ export default function DashboardPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {duplicateTarget && (
+        <DuplicateProjectDialog
+          project={duplicateTarget}
+          open={duplicateOpen}
+          onOpenChange={setDuplicateOpen}
+        />
       )}
 
       <Dialog
