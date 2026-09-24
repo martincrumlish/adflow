@@ -15,6 +15,7 @@ export const gallery = query({
       width: v.number(),
       height: v.number(),
       url: v.union(v.string(), v.null()),
+      spinoffOf: v.optional(v.id("images")),
     }),
   ),
   handler: async (ctx, args) => {
@@ -35,6 +36,7 @@ export const gallery = query({
         width: image.width,
         height: image.height,
         url: await ctx.storage.getUrl(image.storageId),
+        spinoffOf: image.spinoffOf,
       })),
     );
   },

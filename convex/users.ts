@@ -284,6 +284,8 @@ export async function deleteProjectContents(
   ctx: { db: any; storage: any },
   projectId: Id<"projects">,
 ) {
+  const project = await ctx.db.get(projectId);
+  if (project?.logoImageId) await ctx.storage.delete(project.logoImageId);
   const byProject = (table: string) =>
     ctx.db
       .query(table)

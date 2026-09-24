@@ -68,11 +68,24 @@ export type TemplateForPrompt = {
   needsProductImages: boolean;
 };
 
+export type PromptGenerationOptions = {
+  // The brand's real logo is attached to every render as a reference.
+  hasLogo?: boolean;
+};
+
 export function promptGenerationPrompt(
   productName: string,
   brandDnaMarkdown: string,
   templates: TemplateForPrompt[],
+  options: PromptGenerationOptions = {},
 ): string {
+  const logoRule = options.hasLogo
+    ? `
+5. The brand's real logo file is attached to the image model as a reference image. Wherever an
+   ad shows a logo, refer to it as: the brand logo (attached reference). Do not describe its
+   shape, colors, icon, or lettering, do not invent a logo, and never put the logo's text in
+   double quotes as ad copy.`
+    : "";
   const templatesJson = JSON.stringify(
     templates.map((t) => ({
       number: t.number,
@@ -98,7 +111,7 @@ For EACH template:
 2. Prepend the IMAGE GENERATION PROMPT MODIFIER from the Brand DNA to the prompt.
 3. Keep the template's aspect_ratio and needs_product_images unless the filled content clearly
    changes whether the product is shown.
-4. Write copy in the brand's real voice; avoid generic filler.
+4. Write copy in the brand's real voice; avoid generic filler.${logoRule}
 
 Return ONLY valid JSON, no markdown or commentary:
 {
