@@ -11,7 +11,7 @@ images one by one in a background queue — you come back to a finished gallery.
 - **Next.js** (App Router, TypeScript) + **Tailwind v4** + **shadcn/ui** + `lucide-react`
 - **Convex** — database, server functions, file storage, auth, background jobs
 - **Convex Auth** — email + password, tokenised signup links, password reset
-- **Resend** — transactional email (welcome + password reset)
+- **Postmark** — transactional email (welcome + password reset)
 - **OpenRouter** — LLM phases (brand research with the `openrouter:web_search`
   server tool, prompt generation), called with the `openai` SDK
 - **FAL** — image generation via `openai/gpt-image-2` and
@@ -84,8 +84,9 @@ Convex deployment env vars (server-side only — never exposed to the browser):
 | `OPENROUTER_API_KEY` | LLM phases (research + prompt generation) |
 | `OPENROUTER_MODEL` | optional; defaults to `anthropic/claude-sonnet-5` |
 | `FAL_KEY` | image generation |
-| `RESEND_API_KEY` | welcome + password-reset email |
-| `AUTH_EMAIL_FROM` | from-address (display name or `Name <addr>`) |
+| `POSTMARK_SERVER_TOKEN` | welcome + password-reset email (Postmark server API token) |
+| `POSTMARK_MESSAGE_STREAM` | optional; Postmark message stream id, defaults to `outbound` |
+| `AUTH_EMAIL_FROM` | from-address on a verified Postmark sender/domain (`hello@example.com` or `Name <addr>`) |
 | `ADMIN_EMAILS` | comma-separated admin allowlist |
 | `SITE_URL` | absolute app URL used in emails |
 | `JWT_PRIVATE_KEY` / `JWKS` | Convex Auth token signing |
@@ -93,10 +94,9 @@ Convex deployment env vars (server-side only — never exposed to the browser):
 | `GENERATION_CONCURRENCY` | optional; parallel FAL calls per project (1–8, default 4) |
 | `OPENROUTER_MODEL` | optional env fallback; admin Settings override it |
 
-Email: when `AUTH_EMAIL_FROM` is only a display name, mail goes out from
-Resend's shared `onboarding@resend.dev` sender, which Resend only delivers to
-the Resend account owner's own address. For real customers, set it to a full
-`Name <addr>` on a domain verified in Resend. Check delivery with
+Email goes through Postmark's REST API (no SDK). Postmark only accepts a
+`From` on a verified Sender Signature or domain, so `AUTH_EMAIL_FROM` must
+be a real address there. Check delivery with
 `npx convex run emails:sendTest '{"to": "you@example.com"}'`.
 
 Frontend (Vercel / `.env.local`):

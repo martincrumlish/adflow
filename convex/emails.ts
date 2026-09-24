@@ -149,7 +149,11 @@ export const sendWelcome = internalAction({
         return { ok: false, error };
       }
       const message = welcomeEmail({ ...recipient, password: args.password });
-      const result = await sendEmail({ to: recipient.email, ...message });
+      const result = await sendEmail({
+        to: recipient.email,
+        ...message,
+        tag: "welcome",
+      });
       return result.ok ? { ok: true } : { ok: false, error: result.error };
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
@@ -160,7 +164,7 @@ export const sendWelcome = internalAction({
 });
 
 /**
- * Sends a short test email to check Resend delivery end to end:
+ * Sends a short test email to check Postmark delivery end to end:
  *   npx convex run emails:sendTest '{"to": "you@example.com"}'
  */
 export const sendTest = internalAction({
@@ -178,18 +182,18 @@ export const sendTest = internalAction({
       title: "Email is working",
       preheader: "A quick check that AdFlow can send email.",
       bodyHtml: [
-        `<p style="${emailStyles.paragraph}">If you're reading this, AdFlow can send email through Resend.</p>`,
+        `<p style="${emailStyles.paragraph}">If you're reading this, AdFlow can send email through Postmark.</p>`,
         `<p style="${emailStyles.muted}">Sent from ${escapeHtml(from)} for ${escapeHtml(site)}.</p>`,
       ].join("\n"),
     });
     const text = [
       "Email is working",
       "",
-      "If you're reading this, AdFlow can send email through Resend.",
+      "If you're reading this, AdFlow can send email through Postmark.",
       "",
       `Sent from ${from} for ${site}.`,
     ].join("\n");
-    const result = await sendEmail({ to, subject, html, text });
+    const result = await sendEmail({ to, subject, html, text, tag: "test" });
     return result.ok ? { ok: true } : { ok: false, error: result.error };
   },
 });

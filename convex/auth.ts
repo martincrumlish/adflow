@@ -5,7 +5,7 @@ import { internal } from "./_generated/api";
 import type { DataModel, Id } from "./_generated/dataModel";
 import type { DatabaseWriter } from "./_generated/server";
 import { adminEmails } from "./lib/access";
-import { ResendOTPPasswordReset } from "./passwordReset";
+import { PostmarkOTPPasswordReset } from "./passwordReset";
 
 /**
  * Extra fields smuggled through the profile into `createOrUpdateUser`.
@@ -31,7 +31,7 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any;
       },
-      reset: ResendOTPPasswordReset,
+      reset: PostmarkOTPPasswordReset,
     }),
   ],
   callbacks: {

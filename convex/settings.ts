@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import {
   action,
+  internalAction,
   internalQuery,
   mutation,
   query,
@@ -58,6 +59,44 @@ export const adminUpdate = mutation({
     if (doc) await ctx.db.patch(doc._id, patch);
     else await ctx.db.insert("appSettings", patch);
     return null;
+  },
+});
+
+/**
+ * Ops check for the shared provider keys, without printing them:
+ *   npx convex run settings:checkProviders
+ */
+export const checkProviders = internalAction({
+  args: {},
+  returns: v.object({
+    openrouter: v.string(),
+    fal: v.string(),
+  }),
+  handler: async () => {
+    const openrouter = await (async () => {
+      const key = process.env.OPENROUTER_API_KEY;
+      if (!key) return "OPENROUTER_API_KEY not set";
+      const response = await fetch("https://openrouter.ai/api/v1/auth/key", {
+        headers: { Authorization: `Bearer ${key}` },
+      });
+      if (!response.ok) return `HTTP ${response.status}: ${await response.text()}`;
+      const { data } = (await response.json()) as {
+        data: { label?: string; usage?: number; limit?: number | null };
+      };
+      return `ok (${data.label ?? "key"}, used $${data.usage ?? 0}${data.limit != null ? ` of $${data.limit}` : ""})`;
+    })();
+    const fal = await (async () => {
+      const key = process.env.FAL_KEY;
+      if (!key) return "FAL_KEY not set";
+      const response = await fetch("https://rest.alpha.fal.ai/tokens/", {
+        method: "GET",
+        headers: { Authorization: `Key ${key}` },
+      });
+      return response.status === 401 || response.status === 403
+        ? `HTTP ${response.status}: key rejected`
+        : `ok (HTTP ${response.status})`;
+    })();
+    return { openrouter, fal };
   },
 });
 

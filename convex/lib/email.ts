@@ -1,20 +1,25 @@
-import { Resend } from "resend";
-
 /**
  * Shared helpers for AdFlow's transactional email (welcome, password
- * reset, delivery test). Runs in the default Convex runtime.
+ * reset, delivery test), sent through Postmark's REST API. Runs in the
+ * default Convex runtime; no SDK needed.
  */
 
 /**
- * The From header. AUTH_EMAIL_FROM may be a bare display name ("AdFlow"),
- * in which case we fall back to Resend's shared sender, or a full
- * address ("AdFlow <hello@example.com>") on a domain verified in Resend.
+ * The From header. Postmark only accepts senders on a verified Sender
+ * Signature or domain, so AUTH_EMAIL_FROM must be a full address, either
+ * bare ("hello@example.com") or with a display name
+ * ("AdFlow <hello@example.com>"). A bare display name has no address to
+ * send from, so it is reported as a configuration error at send time.
  */
 export function fromAddress(): string {
-  const configured = process.env.AUTH_EMAIL_FROM?.trim() || "AdFlow";
-  return configured.includes("<")
-    ? configured
-    : `${configured} <onboarding@resend.dev>`;
+  return process.env.AUTH_EMAIL_FROM?.trim() || "";
+}
+
+function fromIsValid(from: string): boolean {
+  const address = from.includes("<")
+    ? (from.match(/<([^>]+)>/)?.[1] ?? "")
+    : from;
+  return /^\S+@\S+\.\S+$/.test(address.trim());
 }
 
 /** Absolute app URL for links in emails, without a trailing slash. */
@@ -112,43 +117,69 @@ export function emailLayout({
 export type SendEmailResult = { ok: true } | { ok: false; error: string };
 
 /**
- * Sends one email through Resend. Never throws: failures are logged and
- * returned so callers decide whether they matter.
+ * Sends one email through Postmark (https://postmarkapp.com/developer).
+ * Env: POSTMARK_SERVER_TOKEN (required), AUTH_EMAIL_FROM (a verified
+ * sender), POSTMARK_MESSAGE_STREAM (optional, defaults to "outbound",
+ * Postmark's default transactional stream). Never throws: failures are
+ * logged and returned so callers decide whether they matter.
  */
 export async function sendEmail({
   to,
   subject,
   html,
   text,
+  tag,
 }: {
   to: string | string[];
   subject: string;
   html: string;
   text?: string;
+  /** Postmark tag, for filtering in the activity view. */
+  tag?: string;
 }): Promise<SendEmailResult> {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    const error = "RESEND_API_KEY is not set on the Convex deployment.";
+  const fail = (error: string): SendEmailResult => {
     console.error(`Email "${subject}" not sent: ${error}`);
     return { ok: false, error };
+  };
+  const token = process.env.POSTMARK_SERVER_TOKEN;
+  if (!token) {
+    return fail("POSTMARK_SERVER_TOKEN is not set on the Convex deployment.");
+  }
+  const from = fromAddress();
+  if (!fromIsValid(from)) {
+    return fail(
+      "AUTH_EMAIL_FROM must be a verified Postmark sender address, e.g. AdFlow <hello@yourdomain.com>.",
+    );
   }
   try {
-    const resend = new Resend(apiKey);
-    const { error } = await resend.emails.send({
-      from: fromAddress(),
-      to: Array.isArray(to) ? to : [to],
-      subject,
-      html,
-      ...(text ? { text } : {}),
+    const response = await fetch("https://api.postmarkapp.com/email", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "X-Postmark-Server-Token": token,
+      },
+      body: JSON.stringify({
+        From: from,
+        To: Array.isArray(to) ? to.join(",") : to,
+        Subject: subject,
+        HtmlBody: html,
+        ...(text ? { TextBody: text } : {}),
+        MessageStream: process.env.POSTMARK_MESSAGE_STREAM?.trim() || "outbound",
+        ...(tag ? { Tag: tag } : {}),
+      }),
     });
-    if (error) {
-      console.error(`Email "${subject}" not sent: ${error.message}`);
-      return { ok: false, error: error.message };
+    const payload = (await response.json().catch(() => ({}))) as {
+      ErrorCode?: number;
+      Message?: string;
+    };
+    if (!response.ok || (payload.ErrorCode ?? 0) !== 0) {
+      return fail(
+        `Postmark ${response.status}${payload.ErrorCode ? ` (error ${payload.ErrorCode})` : ""}: ${payload.Message ?? response.statusText}`,
+      );
     }
     return { ok: true };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`Email "${subject}" not sent: ${message}`);
-    return { ok: false, error: message };
+    return fail(err instanceof Error ? err.message : String(err));
   }
 }
