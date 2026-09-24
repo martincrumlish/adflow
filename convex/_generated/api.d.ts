@@ -33,6 +33,7 @@ import type * as promptGen from "../promptGen.js";
 import type * as prompts from "../prompts.js";
 import type * as research from "../research.js";
 import type * as settings from "../settings.js";
+import type * as shares from "../shares.js";
 import type * as signupLinks from "../signupLinks.js";
 import type * as spinoffs from "../spinoffs.js";
 import type * as templates from "../templates.js";
@@ -71,6 +72,7 @@ declare const fullApi: ApiFromModules<{
   prompts: typeof prompts;
   research: typeof research;
   settings: typeof settings;
+  shares: typeof shares;
   signupLinks: typeof signupLinks;
   spinoffs: typeof spinoffs;
   templates: typeof templates;
