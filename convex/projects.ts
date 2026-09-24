@@ -26,6 +26,9 @@ const projectDoc = v.object({
   selectedTemplateIds: v.optional(v.array(v.id("templates"))),
   researchError: v.optional(v.string()),
   promptError: v.optional(v.string()),
+  logoImageId: v.optional(v.id("_storage")),
+  logoFalUrl: v.optional(v.string()),
+  sourceProjectId: v.optional(v.id("projects")),
 });
 
 export const list = query({

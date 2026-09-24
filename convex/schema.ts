@@ -44,7 +44,58 @@ export default defineSchema({
     name: v.string(),
     description: v.optional(v.string()),
     active: v.boolean(),
+    // Finished images allowed per calendar month; undefined = unlimited.
+    // Users with their own API keys (apiKeys rows) are never metered.
+    monthlyImageQuota: v.optional(v.number()),
   }),
+
+  // One row per billable AI call (image render, research, copywriting)
+  // so admins can see spend and quotas can be enforced per month.
+  usageEvents: defineTable({
+    userId: v.id("users"),
+    projectId: v.optional(v.id("projects")),
+    jobId: v.optional(v.id("jobs")),
+    kind: v.union(
+      v.literal("image"),
+      v.literal("research"),
+      v.literal("copy"),
+    ),
+    quality: v.optional(jobQuality),
+    model: v.string(),
+    estimatedCostUsd: v.number(),
+    // True when the call was billed to the user's own key (unmetered).
+    byok: v.boolean(),
+    // "YYYY-MM" in UTC, the quota window.
+    month: v.string(),
+  })
+    .index("by_user_month", ["userId", "month"])
+    .index("by_month", ["month"])
+    .index("by_project", ["projectId"]),
+
+  // Client-review links: a public, tokenised read-only view of a
+  // project's gallery, with per-image approval feedback.
+  shares: defineTable({
+    projectId: v.id("projects"),
+    token: v.string(),
+    label: v.optional(v.string()),
+    active: v.boolean(),
+    allowDownload: v.boolean(),
+  })
+    .index("by_token", ["token"])
+    .index("by_project", ["projectId"]),
+
+  shareFeedback: defineTable({
+    shareId: v.id("shares"),
+    imageId: v.id("images"),
+    verdict: v.optional(
+      v.union(v.literal("approved"), v.literal("changes")),
+    ),
+    comment: v.optional(v.string()),
+    reviewerName: v.optional(v.string()),
+  })
+    .index("by_share", ["shareId"])
+    .index("by_share_image", ["shareId", "imageId"])
+    .index("by_image", ["imageId"]),
 
   // Bring-your-own API keys, AES-GCM encrypted with BYOK_ENCRYPTION_KEY.
   // When present, that user's runs bill their accounts, not ours.
@@ -80,6 +131,12 @@ export default defineSchema({
     selectedTemplateIds: v.optional(v.array(v.id("templates"))),
     researchError: v.optional(v.string()),
     promptError: v.optional(v.string()),
+    // Brand logo, attached as a reference so renders reproduce it exactly.
+    logoImageId: v.optional(v.id("_storage")),
+    // FAL storage URL, cached after first upload.
+    logoFalUrl: v.optional(v.string()),
+    // Set when this project was duplicated from another (Brand DNA reused).
+    sourceProjectId: v.optional(v.id("projects")),
   }).index("by_user", ["userId"]),
 
   productImages: defineTable({
@@ -144,6 +201,10 @@ export default defineSchema({
     replaces: v.optional(
       v.union(v.literal("previous-runs"), v.id("images")),
     ),
+    // Placement spin-off: re-render `sourceImageId` (used as a content
+    // reference) at `aspectRatioOverride` instead of the prompt's ratio.
+    sourceImageId: v.optional(v.id("images")),
+    aspectRatioOverride: v.optional(aspectRatio),
   })
     .index("by_project", ["projectId"])
     .index("by_project_status", ["projectId", "status"])
@@ -160,6 +221,8 @@ export default defineSchema({
     aspectRatio: v.string(),
     width: v.number(),
     height: v.number(),
+    // Set on placement spin-offs: the winning image this was derived from.
+    spinoffOf: v.optional(v.id("images")),
   })
     .index("by_project", ["projectId"])
     .index("by_prompt", ["promptId"]),

@@ -11,6 +11,7 @@ export const adminList = query({
       name: v.string(),
       description: v.optional(v.string()),
       active: v.boolean(),
+      monthlyImageQuota: v.optional(v.number()),
       userCount: v.number(),
       linkCount: v.number(),
     }),
