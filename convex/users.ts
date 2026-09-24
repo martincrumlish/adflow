@@ -239,12 +239,25 @@ export const emailTaken = internalQuery({
   },
 });
 
+export const userIdByEmail = internalQuery({
+  args: { email: v.string() },
+  returns: v.union(v.id("users"), v.null()),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("users")
+      .withIndex("email", (q) => q.eq("email", args.email))
+      .first();
+    return existing?._id ?? null;
+  },
+});
+
 export const adminCreate = action({
   args: {
     email: v.string(),
     password: v.string(),
     planId: v.union(v.id("plans"), v.null()),
     role: v.union(v.literal("admin"), v.literal("user")),
+    sendWelcome: v.optional(v.boolean()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -270,6 +283,17 @@ export const adminCreate = action({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any,
     });
+    if (args.sendWelcome) {
+      const userId = await ctx.runQuery(internal.users.userIdByEmail, {
+        email,
+      });
+      if (userId !== null) {
+        await ctx.scheduler.runAfter(0, internal.emails.sendWelcome, {
+          userId,
+          password: args.password,
+        });
+      }
+    }
     return null;
   },
 });
